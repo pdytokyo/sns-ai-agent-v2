@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('Script Generator Workflow', async ({ page }) => {
   await page.goto('http://localhost:3000');
   
-  await expect(page.getByText('テーマ')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'スクリプト生成' })).toBeVisible();
   
   await page.getByPlaceholder('スクリプトのテーマを入力...').fill('AIで英語学習');
   
