@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      CI: true
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v3
       
@@ -25,7 +28,13 @@ jobs:
       - name: Install Playwright dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2
+          sudo apt-get install -y libasound2t64 ffmpeg
+          npx playwright install-deps
+          
+      - name: Prepare database
+        run: |
+          mkdir -p backend/data
+          cd backend && python -c "from app.database import init_db; init_db()"
           
       - name: Run scraper tests
         run: |
