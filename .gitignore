@@ -1,0 +1,55 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# database
+*.db
+*.sqlite
+*.sqlite3
+
+# media files
+*.mp3
+*.mp4
+*.wav
+*.m4a
+
+# cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
