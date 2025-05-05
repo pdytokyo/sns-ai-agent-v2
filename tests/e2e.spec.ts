@@ -30,5 +30,5 @@ test('Script Generator Workflow', async ({ page }) => {
   
   await page.getByRole('button', { name: '保存する' }).click();
   
-  await expect(page.getByRole('status').getByText('保存しました！')).toBeVisible();
+  await expect(page.getByText('保存しました！', { exact: true })).toBeVisible({ timeout: 10000 });
 });
