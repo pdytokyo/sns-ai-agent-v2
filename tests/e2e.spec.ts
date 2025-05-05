@@ -29,5 +29,7 @@ test('データ収集中 Loading Indicator', async ({ page }) => {
   
   await expect(page.getByRole('button', { name: 'スクリプト生成' }).locator('.animate-spin')).toBeVisible({ timeout: 10000 });
   
+  await expect(page.getByRole('status')).toBeVisible({ timeout: 10000 });
+  
   await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 30000 });
 });
