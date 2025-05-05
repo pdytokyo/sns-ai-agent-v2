@@ -1,0 +1,36 @@
+{
+  "name": "sns-ai-agent-v2",
+  "version": "1.0.0",
+  "description": "SNS AI Agent は、AIを活用してプロフィール、スクリプト、動画処理を生成することで、ユーザーがソーシャルメディアコンテンツを作成するのを支援するWebアプリケーションです。",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "mock-api": "node api/mock-server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@radix-ui/react-label": "^2.0.2",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-toast": "^1.1.5",
+    "@types/node": "^20.11.30",
+    "@types/react": "^18.2.67",
+    "@types/react-dom": "^18.2.22",
+    "autoprefixer": "^10.4.19",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.3",
+    "lucide-react": "^0.363.0",
+    "next": "^14.2.0",
+    "postcss": "^8.4.38",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwind-merge": "^2.2.2",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.4.5"
+  }
+}
