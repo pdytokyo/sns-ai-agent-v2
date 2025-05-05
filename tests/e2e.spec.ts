@@ -14,15 +14,15 @@ test('Script Generator Workflow', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
-  await expect(page.getByText('データ収集中...')).toBeVisible();
+  await expect(page.getByRole('status').getByText('データ収集中...')).toBeVisible();
   
-  await expect(page.getByText('選択')).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 10000 });
   
-  await expect(page.getByText('一致リール数:')).toBeVisible();
+  await expect(page.getByText('一致リール数:', { exact: false })).toBeVisible();
   
   await page.getByRole('button', { name: /問題解決型|日常紹介型|ハウツー型|比較型|ストーリー型/ }).first().click();
   
-  await expect(page.getByText('編集・保存')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '編集・保存' })).toBeVisible();
   
   const textarea = page.locator('textarea').first();
   await textarea.click();
@@ -30,5 +30,5 @@ test('Script Generator Workflow', async ({ page }) => {
   
   await page.getByRole('button', { name: '保存する' }).click();
   
-  await expect(page.getByText('保存しました！')).toBeVisible();
+  await expect(page.getByRole('status').getByText('保存しました！')).toBeVisible();
 });
