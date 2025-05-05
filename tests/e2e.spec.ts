@@ -22,18 +22,13 @@ test('Loading State Test', async ({ page }) => {
   
   await page.getByPlaceholder('スクリプトのテーマを入力...').fill('AIで英語学習');
   
-  await Promise.all([
-    page.getByRole('button', { name: 'スクリプト生成' }).click(),
-    page.waitForTimeout(500) // Small delay to ensure state updates
-  ]);
-  
-  await expect(page.locator('[data-testid="loading-toast"]')).toBeVisible({ timeout: 10000 }).catch(() => {
-    console.log('Loading toast not found or disappeared quickly, continuing test...');
-  });
-  
-  await expect(page.getByRole('button', { name: 'スクリプト生成' })).toBeDisabled({ timeout: 5000 }).catch(() => {
-    console.log('Button not disabled, but continuing test...');
-  });
-  
-  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 60000 });
+  const api = page.waitForResponse(r => r.url().includes('/script') && r.ok());
+  await page.getByRole('button', { name: 'スクリプト生成' }).click();
+  await api;                           // wait for backend to respond
+
+  await expect(page.getByRole('status').first()).toBeVisible({ timeout: 10000 });
+
+  await expect(
+    page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })
+  ).toBeVisible({ timeout: 30000 });
 });

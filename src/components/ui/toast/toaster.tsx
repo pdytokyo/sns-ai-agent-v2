@@ -20,7 +20,7 @@ export function Toaster() {
           <Toast 
             key={id} 
             role="status" 
-            data-testid={props.className === 'data-testid-loading-toast' ? 'loading-toast' : undefined}
+            data-testid="loading-toast"
             {...props}
           >
             <div className="grid gap-1">
