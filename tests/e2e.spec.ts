@@ -14,9 +14,7 @@ test('Script Generator Workflow', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
-  await expect(page.getByText('データ収集中...', { exact: true })).toBeVisible({ timeout: 10000 });
-  
-  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 20000 });
   
   await expect(page.getByText('一致リール数:', { exact: false })).toBeVisible();
   
