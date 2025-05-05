@@ -235,6 +235,7 @@ export default function Home() {
                   variant="outline"
                   className="h-auto p-4 flex flex-col items-start text-left"
                   onClick={() => handleScriptSelect(script)}
+                  data-testid={`script-option-${script.id}`}
                 >
                   <div className="flex justify-between items-center mb-2 w-full">
                     <h3 className="font-medium">{script.title}</h3>
