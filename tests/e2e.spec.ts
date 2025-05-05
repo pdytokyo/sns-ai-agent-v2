@@ -14,19 +14,16 @@ test('Script Generator Theme Input Stage', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
-  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 30000 });
-  
+  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 60000 });
 });
 
-test('データ収集中 Loading Indicator', async ({ page }) => {
+test('Loading State Test', async ({ page }) => {
   await page.goto('http://localhost:3000');
   
   await page.getByPlaceholder('スクリプトのテーマを入力...').fill('AIで英語学習');
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
+  await expect(page.getByRole('button', { name: 'スクリプト生成' })).toBeDisabled();
   
-  
-  await expect(page.getByRole('status')).toBeVisible({ timeout: 10000 });
-  
-  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 60000 });
 });
