@@ -358,6 +358,21 @@ def transcribe_audio(audio_path: str) -> Optional[str]:
         logger.error(f"文字起こしエラー: {e}")
         return None
 
+def generate_mock_reels(keyword, count=3):
+    """CIテスト用のモックReelsデータを生成"""
+    mock_reels = []
+    for i in range(count):
+        reel_id = f"mock_reel_{i}_{int(time.time())}"
+        mock_reels.append({
+            "reel_id": reel_id,
+            "permalink": f"https://www.instagram.com/reel/mock_{reel_id}/",
+            "like_count": 1000 + i * 100,
+            "comment_count": 50 + i * 10,
+            "audio_url": f"https://example.com/audio/{reel_id}.mp3",
+            "engagement_rate": 2.5 + i * 0.5
+        })
+    return mock_reels
+
 def main():
     """メイン関数"""
     parser = argparse.ArgumentParser(description="Instagram Reelsスクレイパー")
@@ -365,15 +380,24 @@ def main():
     parser.add_argument("--top", type=int, default=10, help="取得する上位Reels数")
     parser.add_argument("--min_engage", type=float, default=2.0, help="最小エンゲージメント率（％）")
     parser.add_argument("--need_video", action="store_true", help="動画もダウンロードする")
+    parser.add_argument("--mock", action="store_true", help="モックデータを使用（CI環境用）")
     args = parser.parse_args()
+    
+    is_ci = os.environ.get("CI") == "true"
+    use_mock = args.mock or is_ci
     
     init_db()
     
     browser = None
     try:
-        browser, context, page = setup_stealth_browser()
+        reels = []
         
-        reels = search_hashtag(page, args.keyword, args.top, args.min_engage)
+        if use_mock:
+            logger.info(f"CI環境またはモックモードが有効: モックデータを使用します")
+            reels = generate_mock_reels(args.keyword, args.top)
+        else:
+            browser, context, page = setup_stealth_browser()
+            reels = search_hashtag(page, args.keyword, args.top, args.min_engage)
         
         for reel in reels:
             reel_id = reel["reel_id"]
@@ -387,9 +411,13 @@ def main():
                 audio_url=reel["audio_url"]
             )
             
-            comments = get_comments(page, permalink)
-            if comments:
-                audience_data = analyze_audience(comments)
+            if use_mock:
+                audience_data = {
+                    "age_groups": {"18-24": 45, "25-34": 30, "35-44": 15, "45+": 10},
+                    "gender": {"female": 60, "male": 40},
+                    "interests": ["productivity", "technology", "business", "education"],
+                    "keywords": ["効率", "時間管理", "アプリ", "ツール", "仕事術"]
+                }
                 
                 insert_reel(
                     reel_id=reel_id,
@@ -398,30 +426,59 @@ def main():
                     comment_count=reel["comment_count"],
                     audience_json=audience_data
                 )
-            
-            if reel["audio_url"]:
-                audio_path = download_audio(reel["audio_url"], reel_id)
-                if audio_path:
-                    transcript = transcribe_audio(audio_path)
+                
+                transcript = """
+                こんにちは、今日はInstagramでバズるコンテンツの作り方について話します。
+                まず最初に、ターゲットオーディエンスを明確にすることが重要です。
+                次に、最初の3秒で視聴者の注目を集めるフックを作りましょう。
+                そして、簡潔で価値のある情報を提供することで、エンゲージメントが高まります。
+                最後に、コメントを促す質問で締めくくると、アルゴリズムに好まれます。
+                ぜひ試してみてください！
+                """.strip()
+                
+                insert_reel(
+                    reel_id=reel_id,
+                    permalink=permalink,
+                    like_count=reel["like_count"],
+                    comment_count=reel["comment_count"],
+                    transcript=transcript
+                )
+            else:
+                comments = get_comments(page, permalink)
+                if comments:
+                    audience_data = analyze_audience(comments)
                     
                     insert_reel(
                         reel_id=reel_id,
                         permalink=permalink,
                         like_count=reel["like_count"],
                         comment_count=reel["comment_count"],
-                        transcript=transcript
+                        audience_json=audience_data
                     )
-            
-            if args.need_video:
-                video_path = download_video(page, permalink, reel_id)
-                if video_path:
-                    insert_reel(
-                        reel_id=reel_id,
-                        permalink=permalink,
-                        like_count=reel["like_count"],
-                        comment_count=reel["comment_count"],
-                        local_video=video_path
-                    )
+                
+                if reel["audio_url"]:
+                    audio_path = download_audio(reel["audio_url"], reel_id)
+                    if audio_path:
+                        transcript = transcribe_audio(audio_path)
+                        
+                        insert_reel(
+                            reel_id=reel_id,
+                            permalink=permalink,
+                            like_count=reel["like_count"],
+                            comment_count=reel["comment_count"],
+                            transcript=transcript
+                        )
+                
+                if args.need_video and not use_mock:
+                    video_path = download_video(page, permalink, reel_id)
+                    if video_path:
+                        insert_reel(
+                            reel_id=reel_id,
+                            permalink=permalink,
+                            like_count=reel["like_count"],
+                            comment_count=reel["comment_count"],
+                            local_video=video_path
+                        )
         
         logger.info(f"{len(reels)}件のReelsデータを処理しました")
         
