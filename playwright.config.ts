@@ -19,16 +19,16 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev',
-      url: 'http://localhost:3000',
+      command: 'PORT=3000 npm run dev',
+      port: 3000,
       reuseExistingServer: !process.env.CI,
-      timeout: 120000,
+      timeout: 120 * 1000,
     },
     {
       command: 'npm run mock-api',
-      url: 'http://localhost:8000',
+      port: 8000,
       reuseExistingServer: !process.env.CI,
-      timeout: 60000,
+      timeout: 120 * 1000,
     }
   ],
 });

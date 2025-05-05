@@ -60,4 +60,4 @@ jobs:
           
       - name: Run Playwright tests
         run: |
-          npm run test:e2e
+          CI=true npx playwright test

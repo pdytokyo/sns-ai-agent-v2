@@ -161,4 +161,5 @@ app.post('/script/save', (req, res) => {
 
 app.listen(port, () => {
   console.log(`Mock API server running at http://localhost:${port}`);
+  console.log('Mock API ready');
 });

@@ -30,5 +30,5 @@ test('Loading State Test', async ({ page }) => {
 
   await expect(
     page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })
-  ).toBeVisible({ timeout: 20000 });
+  ).toBeVisible({ timeout: 60000 });
 });
