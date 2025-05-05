@@ -9,8 +9,8 @@ test('Script Generator Workflow', async ({ page }) => {
   
   await page.getByPlaceholder('{"age":"18-24","interest":"study"}').fill('{"age":"18-24","interest":"study"}');
   
-  await page.getByLabel('保存設定を使用する').click();
-  await page.getByLabel('保存設定を使用する').click();
+  await page.locator('#useSavedSettings').click();
+  await page.locator('#useSavedSettings').click();
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
