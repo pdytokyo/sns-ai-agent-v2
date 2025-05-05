@@ -57,6 +57,7 @@ export default function Home() {
     toast({
       title: 'データ収集中...',
       description: 'Instagramからデータを収集しています。しばらくお待ちください。',
+      className: 'data-testid-loading-toast',
     })
     
     try {

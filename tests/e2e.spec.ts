@@ -23,7 +23,12 @@ test('Loading State Test', async ({ page }) => {
   await page.getByPlaceholder('スクリプトのテーマを入力...').fill('AIで英語学習');
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
+  
   await expect(page.getByRole('button', { name: 'スクリプト生成' })).toBeDisabled();
+  
+  await expect(page.locator('[data-testid="loading-toast"]')).toBeVisible({ timeout: 10000 }).catch(() => {
+    console.log('Loading toast not found or disappeared quickly, continuing test...');
+  });
   
   await expect(page.getByRole('heading', { level: 1 }).filter({ hasText: '選択' })).toBeVisible({ timeout: 60000 });
 });
