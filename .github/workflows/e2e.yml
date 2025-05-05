@@ -31,6 +31,10 @@ jobs:
           sudo apt-get install -y libasound2t64 ffmpeg
           npx playwright install-deps
           
+      - name: Install Playwright browsers for Python
+        run: |
+          python -m playwright install
+          
       - name: Prepare database
         run: |
           mkdir -p backend/data
