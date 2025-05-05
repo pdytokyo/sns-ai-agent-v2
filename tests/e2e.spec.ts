@@ -7,7 +7,7 @@ test('Script Generator Workflow', async ({ page }) => {
   
   await page.getByPlaceholder('スクリプトのテーマを入力...').fill('AIで英語学習');
   
-  await page.getByPlaceholder('ターゲット設定 (JSON)').fill('{"age":"18-24","interest":"study"}');
+  await page.getByPlaceholder('{"age":"18-24","interest":"study"}').fill('{"age":"18-24","interest":"study"}');
   
   await page.getByLabel('保存設定を使用する').click();
   await page.getByLabel('保存設定を使用する').click();
