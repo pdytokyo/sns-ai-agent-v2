@@ -64,14 +64,6 @@ export default function Home() {
       description: "SNSからデータを収集しています"
     })
     
-    if (typeof document !== 'undefined') {
-      const loadingToast = document.createElement('div');
-      loadingToast.setAttribute('role', 'status');
-      loadingToast.setAttribute('data-testid', 'loading-toast');
-      loadingToast.style.display = 'none';
-      document.body.appendChild(loadingToast);
-    }
-    
     try {
       const payload: any = {
         theme,
