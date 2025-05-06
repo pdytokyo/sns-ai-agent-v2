@@ -309,37 +309,40 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8">
-      <div className="container max-w-2xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex justify-center mb-6">
-            <div className="flex space-x-4">
-              <div className={`flex flex-col items-center ${stage === 'theme' ? 'text-primary font-medium' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stage === 'theme' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
-                  1
+    <>
+      <Toaster />
+      <main className="min-h-screen bg-gray-50 py-8">
+        <div className="container max-w-2xl mx-auto px-4">
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex justify-center mb-6">
+              <div className="flex space-x-4">
+                <div className={`flex flex-col items-center ${stage === 'theme' ? 'text-primary font-medium' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stage === 'theme' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    1
+                  </div>
+                  <span className="text-sm mt-1">テーマ入力</span>
                 </div>
-                <span className="text-sm mt-1">テーマ入力</span>
-              </div>
-              
-              <div className={`flex flex-col items-center ${stage === 'options' ? 'text-primary font-medium' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stage === 'options' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
-                  2
+                
+                <div className={`flex flex-col items-center ${stage === 'options' ? 'text-primary font-medium' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stage === 'options' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    2
+                  </div>
+                  <span className="text-sm mt-1">オプション</span>
                 </div>
-                <span className="text-sm mt-1">オプション</span>
-              </div>
-              
-              <div className={`flex flex-col items-center ${stage === 'edit' ? 'text-primary font-medium' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stage === 'edit' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
-                  3
+                
+                <div className={`flex flex-col items-center ${stage === 'edit' ? 'text-primary font-medium' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stage === 'edit' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    3
+                  </div>
+                  <span className="text-sm mt-1">編集 &amp; 保存</span>
                 </div>
-                <span className="text-sm mt-1">編集 &amp; 保存</span>
               </div>
             </div>
+            
+            {renderStage()}
           </div>
-          
-          {renderStage()}
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   )
 }
