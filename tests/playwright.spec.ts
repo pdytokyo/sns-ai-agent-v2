@@ -9,7 +9,7 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
-  await expect(page.getByText('データ収集中...')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'データ収集中' })).toBeVisible();
   
   await expect(page.getByRole('heading', { name: '選択' })).toBeVisible({ timeout: 60000 });
   
