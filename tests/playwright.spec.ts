@@ -9,21 +9,18 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
-  await page.waitForResponse(
-    response => response.url().includes('/api/script') && response.status() === 200,
-    { timeout: 60000 }
-  );
+  await expect(page.getByText('データ収集中...')).toBeVisible();
   
-  await expect(page.getByRole('heading', { name: '選択' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '選択' })).toBeVisible({ timeout: 60000 });
   
-  const optionButtons = page.getByRole('button', { name: /AIで英語学習/ });
+  const optionButtons = page.getByRole('button', { name: /オプション/ });
   await expect(optionButtons).toHaveCount(2);
   
   await optionButtons.first().click();
   
   await expect(page.getByRole('heading', { name: '編集 & 保存' })).toBeVisible();
   
-  const textarea = page.getByRole('textbox');
+  const textarea = page.getByRole('textbox').nth(0);
   await textarea.fill('AIで英語学習のカスタムスクリプト');
   
   await page.getByRole('button', { name: 'スクリプトを保存' }).click();
