@@ -3,6 +3,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Textarea } from '../components/ui/textarea'
 import { useToast } from '../components/ui/toast/use-toast'
+import { Toaster } from '../components/ui/toast/toaster'
 import { Loader2 } from 'lucide-react'
 
 type Stage = 'theme' | 'options' | 'edit'
