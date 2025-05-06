@@ -10,7 +10,7 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
   await page.waitForResponse(response => 
-    response.url().includes('/script') && response.status() === 200
+    response.url().includes('/api/script') && response.status() === 200
   );
   
   await expect(page.getByRole('heading', { name: '選択' })).toBeVisible();

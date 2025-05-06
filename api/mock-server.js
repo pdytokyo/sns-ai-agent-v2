@@ -6,7 +6,7 @@ const port = 8000;
 app.use(cors());
 app.use(express.json());
 
-app.post('/script', (req, res) => {
+app.post('/api/script', (req, res) => {
   const { theme } = req.body;
   
   if (!theme) {

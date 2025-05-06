@@ -11,7 +11,7 @@ class ScriptResponse(BaseModel):
     script: str
     alt: str
 
-@router.post("/script", response_model=ScriptResponse)
+@router.post("/api/script", response_model=ScriptResponse)
 async def generate_script(request: ThemeRequest):
     """
     Generate two script options based on the provided theme.
