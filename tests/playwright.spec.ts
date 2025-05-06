@@ -25,5 +25,5 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプトを保存' }).click();
   
-  await expect(page.getByText('保存しました！')).toBeVisible();
+  await expect(page.getByTestId('loading-toast').getByText('保存しました！')).toBeVisible();
 });
