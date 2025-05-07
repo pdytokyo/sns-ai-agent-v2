@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
-import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { Switch } from '../components/ui/switch'
-import { useToast } from '../components/ui/toast/use-toast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { useToast } from '@/components/ui/toast/use-toast'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
