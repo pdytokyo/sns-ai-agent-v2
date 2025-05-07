@@ -61,8 +61,7 @@ export default function Home() {
     
     toast({
       title: "データ収集中...",
-      description: "SNSからデータを収集しています",
-      id: "loading-toast"
+      description: "SNSからデータを収集しています"
     })
     
     try {
@@ -102,8 +101,7 @@ export default function Home() {
         toast({
           title: "警告",
           description: "該当リールが見つかりませんでした",
-          variant: "destructive",
-          id: "error-toast"
+          variant: "destructive"
         })
       }
       

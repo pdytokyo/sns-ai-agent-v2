@@ -18,7 +18,7 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   
   const hitCountText = await page.getByText(/オプション 1 \(\d+件\)/).isVisible();
   if (!hitCountText) {
-    await expect(page.locator('[id="error-toast"]')).toBeVisible();
+    await expect(page.locator('[data-testid="error-toast"]')).toBeVisible();
   }
   
   await optionButtons.first().click();

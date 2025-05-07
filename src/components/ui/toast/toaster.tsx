@@ -19,8 +19,7 @@ export function Toaster() {
           <Toast 
             key={id} 
             role="status" 
-            id="toast-success"
-            data-testid="loading-toast"
+            data-testid={props.variant === "destructive" ? "error-toast" : "toast-success"}
             {...props}
           >
             <div className="grid gap-1">
