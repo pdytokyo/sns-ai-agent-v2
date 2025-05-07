@@ -15,17 +15,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Copy .env.example to .env
+        run: cp .env.example .env
+
+      - name: Set IG_TEST_COOKIE for testing
+        run: echo "IG_TEST_COOKIE=mock_cookie_for_testing" >> .env
+
       - name: Start Docker Compose
         run: docker compose up -d --build
+        
+      - name: Wait for services to be ready
+        run: sleep 30
 
-      - name: Install Playwright
-        run: npm install && npx playwright install --with-deps chromium
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
         run: CI=true npx playwright test
         env:
           CI: true
           ENABLE_ANALYSIS: false
+          PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
 
       - name: Docker logs on failure
         if: failure()
