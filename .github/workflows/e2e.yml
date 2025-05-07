@@ -19,7 +19,7 @@ jobs:
         run: docker compose up -d --build
 
       - name: Install Playwright
-        run: npm ci && npx playwright install --with-deps chromium
+        run: npm install && npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
         run: CI=true npx playwright test
