@@ -19,6 +19,7 @@ export function Toaster() {
           <Toast 
             key={id} 
             role="status" 
+            id="toast-success"
             data-testid="loading-toast"
             {...props}
           >
