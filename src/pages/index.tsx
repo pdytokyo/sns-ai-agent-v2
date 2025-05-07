@@ -105,6 +105,14 @@ export default function Home() {
       setAltScriptText(data.alt || '')
       setMatchingReelsCount(data.matching_reels_count || 0)
       
+      if (data.matching_reels_count === 0) {
+        toast({
+          title: "警告",
+          description: "該当リールが見つかりませんでした",
+          variant: "destructive",
+        })
+      }
+      
       setStage('options')
     } catch (error) {
       console.error('Error generating scripts:', error)
@@ -243,7 +251,7 @@ export default function Home() {
                 onClick={() => handleScriptSelect(scriptText)}
               >
                 <div className="flex justify-between items-center mb-2 w-full">
-                  <h3 className="font-medium">オプション 1</h3>
+                  <h3 className="font-medium">オプション 1 {matchingReelsCount > 0 && `(${matchingReelsCount}件)`}</h3>
                   <span className="text-sm text-gray-500">オリジナルスタイル</span>
                 </div>
                 <div className="text-sm">
@@ -257,7 +265,7 @@ export default function Home() {
                 onClick={() => handleScriptSelect(altScriptText)}
               >
                 <div className="flex justify-between items-center mb-2 w-full">
-                  <h3 className="font-medium">オプション 2</h3>
+                  <h3 className="font-medium">オプション 2 {matchingReelsCount > 0 && `(${matchingReelsCount}件)`}</h3>
                   <span className="text-sm text-gray-500">高エンゲージメントスタイル</span>
                 </div>
                 <div className="text-sm">

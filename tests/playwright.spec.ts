@@ -16,6 +16,11 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   const optionButtons = page.getByRole('button', { name: /オプション/ });
   await expect(optionButtons).toHaveCount(2);
   
+  const hitCountText = await page.getByText(/オプション 1 \(\d+件\)/).isVisible();
+  if (!hitCountText) {
+    await expect(page.getByText('該当リールが見つかりませんでした')).toBeVisible();
+  }
+  
   await optionButtons.first().click();
   
   await expect(page.getByRole('heading', { name: '編集 & 保存' })).toBeVisible();

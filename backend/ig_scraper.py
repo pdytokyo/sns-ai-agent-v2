@@ -21,11 +21,14 @@ import logging
 import subprocess
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Tuple
+from dotenv import load_dotenv
 
 import requests
 from playwright.sync_api import sync_playwright, Page, Browser
 from sklearn.cluster import KMeans
 import numpy as np
+
+load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,13 +71,20 @@ def init_db():
 class InstagramScraper:
     """Scraper for Instagram Reels using Playwright"""
     
-    def __init__(self, headless: bool = True):
+    def __init__(self, headless: bool = True, mock_mode: bool = False):
         """Initialize the scraper"""
         self.headless = headless
         self.browser = None
         self.page = None
         self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
         os.makedirs(self.data_dir, exist_ok=True)
+        self.mock_mode = mock_mode
+        
+        # Check if IG_COOKIE is available
+        self.ig_cookie = os.getenv('IG_COOKIE')
+        if not self.ig_cookie and not self.mock_mode:
+            logger.warning("IG_COOKIE not found in .env file. Falling back to MOCK mode.")
+            self.mock_mode = True
         
         init_db()
     
@@ -140,6 +150,12 @@ class InstagramScraper:
         Returns:
             List of Reel data dictionaries
         """
+        if self.mock_mode:
+            logger.warning(f"Running in MOCK mode. Generating mock data for keyword: {keyword}")
+            mock_reels = self._generate_mock_reels(keyword, top_count)
+            logger.info(f"Scraped {len(mock_reels)} reels for \"{keyword}\" (MOCK mode)")
+            return mock_reels
+            
         if not self.page:
             raise RuntimeError("Browser not started. Use with context manager.")
         
@@ -187,7 +203,9 @@ class InstagramScraper:
                 logger.error(f"Error extracting data from {link}: {e}")
         
         reels_data.sort(key=lambda x: x.get('engagement_rate', 0), reverse=True)
-        return reels_data[:top_count]
+        scraped_reels = reels_data[:top_count]
+        logger.info(f"Scraped {len(scraped_reels)} reels for \"{keyword}\"")
+        return scraped_reels
     
     def _extract_reel_data(self, reel_url: str) -> Dict[str, Any]:
         """
@@ -535,6 +553,43 @@ class InstagramScraper:
             logger.error(f"Error using Whisper: {e}")
             
             return f"これはテスト用の文字起こしです。実際の音声からの文字起こしではありません。{os.path.basename(audio_path)}の内容をここに表示します。"
+            
+    def _generate_mock_reels(self, keyword: str, count: int = 10) -> List[Dict[str, Any]]:
+        """
+        Generate mock Reels data for testing
+        
+        Args:
+            keyword: Search keyword
+            count: Number of mock Reels to generate
+            
+        Returns:
+            List of mock Reel data dictionaries
+        """
+        mock_reels = []
+        for i in range(count):
+            reel_id = f"mock_reel_{keyword}_{i}_{int(time.time())}"
+            
+            engagement_rate = random.uniform(2.0, 15.0)
+            like_count = random.randint(1000, 50000)
+            comment_count = random.randint(50, 500)
+            view_count = int(like_count / (engagement_rate / 100))
+            
+            mock_reel = {
+                'reel_id': reel_id,
+                'permalink': f"https://www.instagram.com/reel/mock_{reel_id}/",
+                'like_count': like_count,
+                'comment_count': comment_count,
+                'view_count': view_count,
+                'engagement_rate': engagement_rate,
+                'scraped_at': datetime.now().isoformat(),
+                'transcript': f"これは「{keyword}」に関するモックのトランスクリプトです。実際のコンテンツではありません。"
+            }
+            
+            self._save_reel_to_db(mock_reel)
+            
+            mock_reels.append(mock_reel)
+        
+        return mock_reels
 
 def main():
     """Main function for command line usage"""
