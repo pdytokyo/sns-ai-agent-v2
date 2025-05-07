@@ -80,10 +80,10 @@ class InstagramScraper:
         os.makedirs(self.data_dir, exist_ok=True)
         self.mock_mode = mock_mode
         
-        # Check if IG_COOKIE is available
-        self.ig_cookie = os.getenv('IG_COOKIE')
+        # Check if IG_TEST_COOKIE is available
+        self.ig_cookie = os.getenv('IG_TEST_COOKIE')
         if not self.ig_cookie and not self.mock_mode:
-            logger.warning("IG_COOKIE not found in .env file. Falling back to MOCK mode.")
+            logger.warning("IG_TEST_COOKIE not found in environment. Falling back to MOCK mode.")
             self.mock_mode = True
         
         init_db()
@@ -154,6 +154,10 @@ class InstagramScraper:
             logger.warning(f"Running in MOCK mode. Generating mock data for keyword: {keyword}")
             mock_reels = self._generate_mock_reels(keyword, top_count)
             logger.info(f"Scraped {len(mock_reels)} reels for \"{keyword}\" (MOCK mode)")
+            
+            if len(mock_reels) == 0 and os.getenv('CI') == 'true':
+                raise RuntimeError(f"No reels found for keyword: {keyword}")
+                
             return mock_reels
             
         if not self.page:
@@ -184,27 +188,41 @@ class InstagramScraper:
         unique_links = list(set(reel_links))
         logger.info(f"Found {len(unique_links)} unique Reels")
         
+        ninety_days_ago = datetime.now() - timedelta(days=90)
+        
         reels_data = []
         for link in unique_links[:min(top_count * 2, len(unique_links))]:
             try:
                 reel_data = self._extract_reel_data(link)
                 
+                scraped_at = datetime.fromisoformat(reel_data.get('scraped_at', datetime.now().isoformat()))
+                if scraped_at < ninety_days_ago:
+                    logger.info(f"Skipping Reel {reel_data['reel_id']} - older than 90 days")
+                    continue
+                
                 if reel_data.get('like_count') and reel_data.get('view_count'):
                     engagement_rate = (reel_data['like_count'] + reel_data.get('comment_count', 0)) / reel_data['view_count'] * 100
                     reel_data['engagement_rate'] = engagement_rate
                     
-                    if engagement_rate >= min_engagement:
+                    views_followers_ratio = reel_data.get('view_count', 0) / max(1, reel_data.get('follower_count', 1000))
+                    reel_data['views_followers_ratio'] = views_followers_ratio
+                    
+                    if engagement_rate >= min_engagement and views_followers_ratio >= 3:
                         reels_data.append(reel_data)
                         
                         self._save_reel_to_db(reel_data)
                         
-                        logger.info(f"Extracted Reel {reel_data['reel_id']} with engagement rate {engagement_rate:.2f}%")
+                        logger.info(f"Extracted Reel {reel_data['reel_id']} with engagement rate {engagement_rate:.2f}% and views/followers ratio {views_followers_ratio:.2f}")
             except Exception as e:
                 logger.error(f"Error extracting data from {link}: {e}")
         
         reels_data.sort(key=lambda x: x.get('engagement_rate', 0), reverse=True)
         scraped_reels = reels_data[:top_count]
         logger.info(f"Scraped {len(scraped_reels)} reels for \"{keyword}\"")
+        
+        if len(scraped_reels) == 0 and os.getenv('CI') == 'true':
+            raise RuntimeError(f"No reels found for keyword: {keyword}")
+            
         return scraped_reels
     
     def _extract_reel_data(self, reel_url: str) -> Dict[str, Any]:
