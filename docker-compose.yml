@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - ./backend/app:/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       - PYTHONPATH=/app
@@ -22,12 +22,10 @@ services:
     volumes:
       - ./src:/app/src
       - ./public:/app/public
-      - ./package.json:/app/package.json
-      - ./package-lock.json:/app/package-lock.json
-      - ./next.config.js:/app/next.config.js
-      - ./postcss.config.js:/app/postcss.config.js
-      - ./tailwind.config.js:/app/tailwind.config.js
-      - ./tsconfig.json:/app/tsconfig.json
+      # Exclude configuration files to prevent constant restarts
+      - /app/node_modules
+      - /app/.next
+      - /app/next.config.js
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
