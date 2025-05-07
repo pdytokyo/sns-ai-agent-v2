@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
 import json
 import uuid
+import os
+import logging
 from datetime import datetime, timedelta
 
 from ..services.script_generator import ScriptGenerator
@@ -13,6 +15,8 @@ from ..database import (
     save_user_feedback,
     get_client_settings
 )
+
+logger = logging.getLogger("script_router")
 
 router = APIRouter()
 script_generator = ScriptGenerator()
@@ -168,7 +172,13 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
     top_reels = []
     
     try:
-        with InstagramScraper(headless=True) as scraper:
+        ig_cookie = os.getenv('IG_COOKIE')
+        mock_mode = False
+        if not ig_cookie:
+            logger.warning("IG_COOKIE not found in .env file. Using MOCK mode for Instagram scraping.")
+            mock_mode = True
+        
+        with InstagramScraper(headless=True, mock_mode=mock_mode) as scraper:
             main_keyword = keywords[0] if keywords else request.theme
             top_reels = scraper.search_reels_by_keyword(
                 main_keyword, 
@@ -201,8 +211,10 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
                         if media_result.get('transcript'):
                             reel['transcript'] = media_result['transcript']
                             matching_reels.append(reel)
+            
+            logger.info(f"Found {len(matching_reels)} matching reels for target audience")
     except Exception as e:
-        print(f"Error in scraping/transcription: {e}")
+        logger.error(f"Error in scraping/transcription: {e}")
     
     
     if matching_reels:
