@@ -18,11 +18,14 @@ jobs:
       - name: Start Docker Compose
         run: docker compose up -d --build
 
-      - name: Install Playwright
-        run: npm install && npx playwright install --with-deps chromium
+      - name: Copy .env.example to .env
+        run: cp .env.example .env
 
-      - name: Run Playwright tests
-        run: CI=true npx playwright test
+      - name: Set IG_TEST_COOKIE for testing
+        run: echo "IG_TEST_COOKIE=mock_cookie_for_testing" >> .env
+
+      - name: Run Playwright tests in Docker
+        run: docker compose exec -T frontend npm test
         env:
           CI: true
 
