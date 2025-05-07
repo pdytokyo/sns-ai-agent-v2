@@ -22,6 +22,12 @@ services:
     volumes:
       - ./src:/app/src
       - ./public:/app/public
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - ./next.config.js:/app/next.config.js
+      - ./postcss.config.js:/app/postcss.config.js
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./tsconfig.json:/app/tsconfig.json
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
