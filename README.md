@@ -142,3 +142,4 @@ curl -X GET http://localhost:8000/health
 - アプリケーションが起動しない場合は、コンソールでエラーメッセージを確認してください
 - 依存関係のインストールに問題がある場合は、Pythonのバージョンが3.8以上であることを確認してください
 # Client Account Analysis Feature
+# Trigger CI run
