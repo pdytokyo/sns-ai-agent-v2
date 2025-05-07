@@ -61,7 +61,8 @@ export default function Home() {
     
     toast({
       title: "データ収集中...",
-      description: "SNSからデータを収集しています"
+      description: "SNSからデータを収集しています",
+      variant: "default"
     })
     
     try {
