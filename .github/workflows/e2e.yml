@@ -25,6 +25,7 @@ jobs:
         run: CI=true npx playwright test
         env:
           CI: true
+          ENABLE_ANALYSIS: false
 
       - name: Docker logs on failure
         if: failure()

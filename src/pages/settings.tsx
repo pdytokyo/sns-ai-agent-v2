@@ -7,6 +7,8 @@ import { useToast } from '@/components/ui/toast/use-toast'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
+const ENABLE_ANALYSIS = process.env.ENABLE_ANALYSIS === 'true'
+
 export default function Settings() {
   const [accessToken, setAccessToken] = useState('')
   const [isTokenValid, setIsTokenValid] = useState(false)
@@ -15,14 +17,18 @@ export default function Settings() {
   const { toast } = useToast()
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('ig_access_token')
-    if (storedToken) {
-      setAccessToken(storedToken)
-      verifyToken(storedToken)
+    if (ENABLE_ANALYSIS) {
+      const storedToken = localStorage.getItem('ig_access_token')
+      if (storedToken) {
+        setAccessToken(storedToken)
+        verifyToken(storedToken)
+      }
     }
   }, [])
 
   const verifyToken = async (token: string) => {
+    if (!ENABLE_ANALYSIS) return
+    
     setIsLoading(true)
     
     try {
@@ -87,6 +93,8 @@ export default function Settings() {
   }
 
   const handleEnableAnalysis = () => {
+    if (!ENABLE_ANALYSIS) return
+    
     if (!accessToken.trim()) {
       toast({
         title: "エラー",
@@ -100,6 +108,8 @@ export default function Settings() {
   }
 
   const handleDisconnect = () => {
+    if (!ENABLE_ANALYSIS) return
+    
     setAccessToken('')
     setIsTokenValid(false)
     setAccountInfo(null)
@@ -121,78 +131,96 @@ export default function Settings() {
           </div>
           
           <div className="space-y-6">
-            <div className="border-b pb-4">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h2 className="text-lg font-medium">アカウント分析</h2>
-                  <p className="text-sm text-gray-500">
-                    Instagram Graph APIを使用してアカウント分析を有効化します
-                  </p>
-                </div>
-                <div className="flex items-center">
-                  <Switch 
-                    checked={isTokenValid} 
-                    disabled={true}
-                    id="analysis-enabled"
-                  />
-                  <label htmlFor="analysis-enabled" className="ml-2 text-sm font-medium">
-                    {isTokenValid ? '有効' : '無効'}
-                  </label>
-                </div>
-              </div>
-              
-              {isTokenValid ? (
-                <div className="bg-green-50 p-4 rounded-md">
-                  <p className="text-green-800 font-medium">
-                    アカウント連携済み: @{accountInfo?.username}
-                  </p>
-                  <p className="text-sm text-green-600 mt-1">
-                    アカウントID: {accountInfo?.account_id}
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    className="mt-2" 
-                    onClick={handleDisconnect}
-                  >
-                    連携を解除
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
+            {ENABLE_ANALYSIS ? (
+              <div className="border-b pb-4">
+                <div className="flex justify-between items-center mb-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Instagram アクセストークン
-                    </label>
-                    <Input
-                      placeholder="Instagram Graph API アクセストークンを入力..."
-                      value={accessToken}
-                      onChange={(e) => setAccessToken(e.target.value)}
-                      disabled={isLoading}
-                      type="password"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      <a 
-                        href="https://developers.facebook.com/docs/instagram-basic-display-api/getting-started" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-500 hover:underline"
-                      >
-                        Instagram Graph APIのドキュメント
-                      </a>
-                      からアクセストークンを取得してください
+                    <h2 className="text-lg font-medium">アカウント分析</h2>
+                    <p className="text-sm text-gray-500">
+                      Instagram Graph APIを使用してアカウント分析を有効化します
                     </p>
                   </div>
-                  
-                  <Button 
-                    onClick={handleEnableAnalysis} 
-                    disabled={isLoading || !accessToken.trim()}
-                  >
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    アカウント分析を有効化
-                  </Button>
+                  <div className="flex items-center">
+                    <Switch 
+                      checked={isTokenValid} 
+                      disabled={true}
+                      id="analysis-enabled"
+                    />
+                    <label htmlFor="analysis-enabled" className="ml-2 text-sm font-medium">
+                      {isTokenValid ? '有効' : '無効'}
+                    </label>
+                  </div>
                 </div>
-              )}
-            </div>
+                
+                {isTokenValid ? (
+                  <div className="bg-green-50 p-4 rounded-md">
+                    <p className="text-green-800 font-medium">
+                      アカウント連携済み: @{accountInfo?.username}
+                    </p>
+                    <p className="text-sm text-green-600 mt-1">
+                      アカウントID: {accountInfo?.account_id}
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-2" 
+                      onClick={handleDisconnect}
+                    >
+                      連携を解除
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Instagram アクセストークン
+                      </label>
+                      <Input
+                        placeholder="Instagram Graph API アクセストークンを入力..."
+                        value={accessToken}
+                        onChange={(e) => setAccessToken(e.target.value)}
+                        disabled={isLoading}
+                        type="password"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        <a 
+                          href="https://developers.facebook.com/docs/instagram-basic-display-api/getting-started" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:underline"
+                        >
+                          Instagram Graph APIのドキュメント
+                        </a>
+                        からアクセストークンを取得してください
+                      </p>
+                    </div>
+                    
+                    <Button 
+                      onClick={handleEnableAnalysis} 
+                      disabled={isLoading || !accessToken.trim()}
+                    >
+                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      アカウント分析を有効化
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="border-b pb-4">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h2 className="text-lg font-medium">アカウント分析</h2>
+                    <p className="text-sm text-gray-500">
+                      この機能は現在無効になっています
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-gray-600">
+                    アカウント分析機能を有効にするには、環境変数 <code>ENABLE_ANALYSIS=true</code> を設定してください。
+                  </p>
+                </div>
+              </div>
+            )}
             
             <div className="flex justify-between">
               <Link href="/">
