@@ -61,16 +61,9 @@ export default function Home() {
     
     toast({
       title: "データ収集中...",
-      description: "SNSからデータを収集しています"
+      description: "SNSからデータを収集しています",
+      id: "loading-toast"
     })
-    
-    if (typeof document !== 'undefined') {
-      const loadingToast = document.createElement('div');
-      loadingToast.setAttribute('role', 'status');
-      loadingToast.setAttribute('data-testid', 'toast-success');
-      loadingToast.style.display = 'none';
-      document.body.appendChild(loadingToast);
-    }
     
     try {
       const payload: any = {
@@ -110,6 +103,7 @@ export default function Home() {
           title: "警告",
           description: "該当リールが見つかりませんでした",
           variant: "destructive",
+          id: "error-toast"
         })
       }
       
