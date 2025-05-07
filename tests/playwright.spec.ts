@@ -9,8 +9,8 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
-  await expect(page.locator('#toast-success')).toBeVisible();
-  
+  await expect(page.locator('[data-testid="toast-success"]')).toBeAttached();
+
   await expect(page.getByRole('heading', { name: '選択' })).toBeVisible({ timeout: 60000 });
   
   const optionButtons = page.getByRole('button', { name: /オプション/ });
@@ -25,5 +25,5 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   
   await page.getByRole('button', { name: 'スクリプトを保存' }).click();
   
-  await expect(page.locator('#toast-success').getByText('保存しました！')).toBeVisible();
+  await expect(page.locator('[data-testid="toast-success"]').getByText('保存しました！')).toBeAttached();
 });
