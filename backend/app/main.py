@@ -35,6 +35,10 @@ else:
     async def mock_get_account_analysis(client_id: str):
         return {"status": "mock"}
     
+    @mock_router.get("/api/analysis/profile")
+    async def mock_profile():
+        return {"status": "mock"}
+    
     app.include_router(mock_router)
 
 @app.get("/")
