@@ -143,3 +143,6 @@ curl -X GET http://localhost:8000/health
 - 依存関係のインストールに問題がある場合は、Pythonのバージョンが3.8以上であることを確認してください
 # Client Account Analysis Feature
 # Trigger CI run
+## Client Account Analysis
+This feature allows integration with Instagram Graph API for account analysis.
+Set ENABLE_ANALYSIS=true to enable this feature.
