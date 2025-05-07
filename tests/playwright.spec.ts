@@ -31,7 +31,7 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
   console.log('Waiting for toast success notification');
-  await expect(page.locator('[data-testid="toast-success"]')).toBeAttached();
+  await expect(page.locator('[data-testid="toast-success"]').first()).toBeAttached();
   
   console.log('Waiting for options to appear');
   await expect(page.getByRole('heading', { name: '選択' })).toBeVisible({ timeout: 60000 });
