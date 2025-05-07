@@ -37,9 +37,8 @@ COPY package.json ./
 # Install dependencies
 RUN npm install
 
-# Install Playwright with system browser (using Alpine's apk instead of apt-get)
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN npx playwright install chromium
+# Install Playwright with Chromium
+RUN npx playwright install --with-deps chromium
 
 # Copy the rest of the application
 COPY . .
