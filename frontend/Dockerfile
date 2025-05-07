@@ -37,8 +37,8 @@ COPY package.json ./
 # Install dependencies
 RUN npm install
 
-# Install Playwright with Chromium
-RUN npx playwright install --with-deps chromium
+# Playwright will use the system Chromium browser
+# No need to run playwright install since we've set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Copy the rest of the application
 COPY . .
