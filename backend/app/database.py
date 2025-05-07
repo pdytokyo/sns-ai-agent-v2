@@ -391,5 +391,104 @@ def save_user_feedback(script_id: str, original: str, edited: str) -> bool:
     finally:
         conn.close()
 
+def save_account_analysis(client_id: str, analysis_data: Dict[str, Any]) -> bool:
+    """Save Instagram account analysis data to the database"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS account_analysis(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        followers_count INTEGER,
+        media_count INTEGER,
+        engagement_rate REAL,
+        top_hashtags TEXT,
+        analyzed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        analysis_data JSON,
+        FOREIGN KEY (client_id) REFERENCES client_settings(client_id)
+    )
+    ''')
+    
+    if isinstance(analysis_data.get('top_hashtags'), list):
+        top_hashtags = ','.join(analysis_data.get('top_hashtags', []))
+    else:
+        top_hashtags = analysis_data.get('top_hashtags', '')
+    
+    analysis_json = json.dumps(analysis_data)
+    
+    try:
+        cursor.execute('''
+        INSERT INTO account_analysis (
+            client_id, account_id, username, followers_count, 
+            media_count, engagement_rate, top_hashtags, analyzed_at, analysis_data
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            client_id,
+            analysis_data.get('account_id'),
+            analysis_data.get('username'),
+            analysis_data.get('followers_count', 0),
+            analysis_data.get('media_count', 0),
+            analysis_data.get('engagement_rate', 0.0),
+            top_hashtags,
+            analysis_data.get('analyzed_at', datetime.now().isoformat()),
+            analysis_json
+        ))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error saving account analysis: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_account_analysis(client_id: str) -> Optional[Dict[str, Any]]:
+    """Get the latest account analysis for a client"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='account_analysis'
+        ''')
+        if not cursor.fetchone():
+            return None
+        
+        cursor.execute('''
+        SELECT * FROM account_analysis 
+        WHERE client_id = ? 
+        ORDER BY analyzed_at DESC 
+        LIMIT 1
+        ''', (client_id,))
+        
+        row = cursor.fetchone()
+        
+        if not row:
+            return None
+        
+        analysis = dict(row)
+        
+        if analysis.get('top_hashtags'):
+            analysis['top_hashtags'] = analysis['top_hashtags'].split(',')
+        else:
+            analysis['top_hashtags'] = []
+        
+        if analysis.get('analysis_data'):
+            try:
+                full_data = json.loads(analysis['analysis_data'])
+                analysis.update(full_data)
+            except:
+                pass
+        
+        return analysis
+    except Exception as e:
+        print(f"Error getting account analysis: {e}")
+        return None
+    finally:
+        conn.close()
+
 init_db()
 validate_schema()
