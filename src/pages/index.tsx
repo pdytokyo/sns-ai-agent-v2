@@ -338,13 +338,15 @@ export default function Home() {
                   <span className="text-sm mt-1">編集 &amp; 保存</span>
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => window.location.href = '/settings'}
-              >
-                設定
-              </Button>
+              {process.env.ENABLE_ANALYSIS === 'true' && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.location.href = '/settings'}
+                >
+                  設定
+                </Button>
+              )}
             </div>
             
             {renderStage()}
