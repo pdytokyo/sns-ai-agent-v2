@@ -44,6 +44,8 @@ test.describe('Analysis Features', () => {
 });
 
 test('Navigation between Home and Settings', async ({ page }: { page: Page }) => {
+  test.skip(!isAnalysisEnabled, 'Analysis features are disabled');
+  
   await page.goto('http://localhost:3000');
   
   await page.getByRole('button', { name: '設定' }).click();
