@@ -21,8 +21,13 @@ jobs:
       - name: Set IG_TEST_COOKIE for testing
         run: echo "IG_TEST_COOKIE=mock_cookie_for_testing" >> .env
 
+      - name: Set ENABLE_ANALYSIS=false for all services
+        run: echo "ENABLE_ANALYSIS=false" >> .env
+
       - name: Start Docker Compose
         run: docker compose up -d --build
+        env:
+          ENABLE_ANALYSIS: "false"
         
       - name: Wait for services to be ready
         run: sleep 30
@@ -37,6 +42,62 @@ jobs:
         run: CI=true npx playwright test
         env:
           CI: true
+          ENABLE_ANALYSIS: "false"
+          PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
+
+      - name: Docker logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop Docker Compose
+        if: always()
+        run: docker compose down
+
+  # Optional job that only runs if IG_GRAPH_TOKEN environment variable is set
+  test-with-analysis:
+    runs-on: ubuntu-latest
+    # Use environment variables instead of secrets in job-level conditions
+    if: false # Disable this job for now until we have proper token setup
+    needs: test
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Copy .env.example to .env
+        run: cp .env.example .env
+
+      - name: Set IG_TEST_COOKIE for testing
+        run: echo "IG_TEST_COOKIE=mock_cookie_for_testing" >> .env
+
+      - name: Set ENABLE_ANALYSIS=true for all services
+        run: echo "ENABLE_ANALYSIS=true" >> .env
+        
+      - name: Set IG_GRAPH_TOKEN for testing
+        # Only run this step if the secret exists
+        if: ${{ env.IG_GRAPH_TOKEN != '' }}
+        run: echo "IG_GRAPH_TOKEN=${{ env.IG_GRAPH_TOKEN }}" >> .env
+
+      - name: Start Docker Compose
+        run: docker compose up -d --build
+        env:
+          ENABLE_ANALYSIS: "true"
+        
+      - name: Wait for services to be ready
+        run: sleep 30
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: CI=true npx playwright test
+        env:
+          CI: true
+          ENABLE_ANALYSIS: "true"
           PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
 
       - name: Docker logs on failure

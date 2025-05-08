@@ -315,7 +315,7 @@ export default function Home() {
       <main className="min-h-screen bg-gray-50 py-8">
         <div className="container max-w-2xl mx-auto px-4">
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-between items-center mb-6">
               <div className="flex space-x-4">
                 <div className={`flex flex-col items-center ${stage === 'theme' ? 'text-primary font-medium' : 'text-gray-400'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${stage === 'theme' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -338,6 +338,15 @@ export default function Home() {
                   <span className="text-sm mt-1">編集 &amp; 保存</span>
                 </div>
               </div>
+              {process.env.ENABLE_ANALYSIS === 'true' && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.location.href = '/settings'}
+                >
+                  設定
+                </Button>
+              )}
             </div>
             
             {renderStage()}
