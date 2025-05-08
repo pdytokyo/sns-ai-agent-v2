@@ -62,7 +62,7 @@ test('Script Generator End-to-End Flow', async ({ page }) => {
   await page.getByRole('button', { name: 'スクリプトを保存' }).click();
   
   console.log('Verifying toast success notification for save');
-  await expect(page.locator('[data-testid="toast-success"]').getByText('保存しました！')).toBeAttached();
+  await expect(page.locator('[data-testid="toast-success"]').getByText('保存しました！').first()).toBeAttached();
   
   console.log('Verifying we remain on edit page after save');
   await expect(page.getByRole('heading', { name: '編集 & 保存' })).toBeVisible();
