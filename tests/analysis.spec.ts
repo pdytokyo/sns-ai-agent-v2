@@ -1,12 +1,11 @@
 import { test, expect, Page } from '@playwright/test';
 
 const isAnalysisEnabled = process.env.ENABLE_ANALYSIS === 'true';
+
 test.describe('Analysis Features', () => {
   test.skip(!isAnalysisEnabled, 'Analysis features are disabled');
   
   test('Account Analysis Settings Flow', async ({ page }: { page: Page }) => {
-    test.skip(!isAnalysisEnabled, 'Analysis features are disabled');
-    
     console.log('Running Analysis Features tests with ENABLE_ANALYSIS=true');
     await page.route('**/api/analysis/verify_token', async (route) => {
       console.log('Mocking API response for /api/analysis/verify_token');
@@ -43,16 +42,18 @@ test.describe('Analysis Features', () => {
   });
 });
 
-test('Navigation between Home and Settings', async ({ page }: { page: Page }) => {
-  test.skip(!isAnalysisEnabled, 'Analysis features are disabled');
+test.describe('Navigation Tests', () => {
+  test.skip(!isAnalysisEnabled, 'Analysis navigation tests are disabled when ENABLE_ANALYSIS is not true');
   
-  await page.goto('http://localhost:3000');
-  
-  await page.getByRole('button', { name: '設定' }).click();
-  
-  await expect(page.getByRole('heading', { name: '設定' })).toBeVisible();
-  
-  await page.getByRole('button', { name: 'ホームに戻る' }).click();
-  
-  await expect(page.getByRole('heading', { name: 'スクリプト生成' })).toBeVisible();
+  test('Navigation between Home and Settings', async ({ page }: { page: Page }) => {
+    await page.goto('http://localhost:3000');
+    
+    await page.getByRole('button', { name: '設定' }).click();
+    
+    await expect(page.getByRole('heading', { name: '設定' })).toBeVisible();
+    
+    await page.getByRole('button', { name: 'ホームに戻る' }).click();
+    
+    await expect(page.getByRole('heading', { name: 'スクリプト生成' })).toBeVisible();
+  });
 });
