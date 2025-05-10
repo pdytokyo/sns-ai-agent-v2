@@ -148,7 +148,7 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
     6. Return formatted scripts for UI workflow
     7. Store edits and embed for future reference (handled by save endpoint)
     """
-    from ...ig_scraper import InstagramScraper
+    from app.ig_scraper import InstagramScraper
     
     if not request.theme:
         raise HTTPException(status_code=400, detail="Theme is required")
