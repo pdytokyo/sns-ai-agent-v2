@@ -28,6 +28,7 @@ jobs:
         run: docker compose up -d --build
         env:
           ENABLE_ANALYSIS: "false"
+          IG_TEST_COOKIE: ${{ secrets.IG_TEST_COOKIE }}
         
       - name: Wait for services to be ready
         run: sleep 30
@@ -83,6 +84,7 @@ jobs:
         run: docker compose up -d --build
         env:
           ENABLE_ANALYSIS: "true"
+          IG_TEST_COOKIE: ${{ secrets.IG_TEST_COOKIE }}
         
       - name: Wait for services to be ready
         run: sleep 30

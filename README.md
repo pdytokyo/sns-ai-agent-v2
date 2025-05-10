@@ -34,9 +34,10 @@ venv\Scripts\activate  # Windowsの場合
 pip install -r requirements.txt
 ```
 
-4. `.env` ファイルを作成してOpenAI APIキーを設定:
+4. `.env` ファイルを作成して必要なAPIキーを設定:
 ```
 OPENAI_API_KEY=<YOUR_API_KEY>
+IG_TEST_COOKIE=<YOUR_INSTAGRAM_TEST_COOKIE>
 ```
 
 ## GitHub Container Registry (GHCR) の設定
