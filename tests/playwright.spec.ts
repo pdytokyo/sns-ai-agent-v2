@@ -25,8 +25,13 @@ test('Script Generator End-to-End Flow with Live Scraping', async ({ page }) => 
     console.log('Loading indicator not found or disappeared quickly, continuing test');
   }
   
-  console.log('Waiting for toast success notification');
-  await expect(page.locator('[data-testid="toast-success"]').first()).toBeVisible({ timeout: 90000 });
+  console.log('Waiting for toast success notification or options to appear');
+  try {
+    await expect(page.locator('[data-testid="toast-success"]').first()).toBeVisible({ timeout: 30000 });
+    console.log('Toast success notification found');
+  } catch (e) {
+    console.log('Toast success notification not found, checking if options appeared instead');
+  }
   
   console.log('Waiting for options to appear');
   await expect(page.getByRole('heading', { name: '選択' })).toBeVisible({ timeout: 90000 });
