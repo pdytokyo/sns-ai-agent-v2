@@ -147,33 +147,94 @@ def login_instagram(
         logger.error(f"Login failed: {e}")
         return False
 
+def wait_for_manual_login(page: Page, cookie_file: str = 'cookie.json', timeout: int = 300) -> bool:
+    """
+    Wait for user to manually login to Instagram
+    
+    Args:
+        page: Playwright page
+        cookie_file: Path to save cookies
+        timeout: Maximum time to wait for login in seconds
+        
+    Returns:
+        True if login successful, False otherwise
+    """
+    logger.info("Please login manually in the browser window")
+    logger.info(f"Waiting up to {timeout} seconds for login...")
+    
+    page.goto('https://www.instagram.com/accounts/login/')
+    
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        if is_logged_in(page):
+            logger.info("Manual login successful")
+            
+            handle_post_login_dialogs(page)
+            
+            # Save cookies
+            save_cookies(page.context, cookie_file)
+            return True
+        
+        time.sleep(5)
+    
+    logger.error(f"Timed out waiting for manual login after {timeout} seconds")
+    return False
+
+def handle_post_login_dialogs(page: Page) -> None:
+    """
+    Handle common Instagram dialogs that appear after login
+    
+    Args:
+        page: Playwright page
+    """
+    dialog_buttons = [
+        'button:has-text("Not Now")',
+        'button:has-text("Cancel")',
+        'button:has-text("Skip")',
+        'button:has-text("Maybe Later")',
+        'button:has-text("Close")'
+    ]
+    
+    for button_selector in dialog_buttons:
+        try:
+            if page.locator(button_selector).count() > 0:
+                logger.info(f"Dismissing dialog with {button_selector}")
+                page.click(button_selector)
+                page.wait_for_load_state('networkidle')
+                time.sleep(1)  # Wait a bit for any animations
+        except Exception as e:
+            logger.debug(f"Error handling dialog {button_selector}: {e}")
+
 def main():
     """Main function"""
     import argparse
     
     parser = argparse.ArgumentParser(description='Instagram Login Script')
-    parser.add_argument('--username', '-u', help='Instagram username')
-    parser.add_argument('--password', '-p', help='Instagram password')
     parser.add_argument('--cookie-file', '-c', default='cookie.json', help='Path to cookie file')
-    parser.add_argument('--headless', action='store_true', help='Run browser in headless mode')
+    parser.add_argument('--headless', action='store_true', help='Run browser in headless mode (not recommended for manual login)')
+    parser.add_argument('--timeout', '-t', type=int, default=300, help='Timeout for manual login in seconds')
+    parser.add_argument('--auto-login', '-a', action='store_true', help='Use automated login instead of manual login')
+    parser.add_argument('--username', '-u', help='Instagram username (only needed for auto-login)')
+    parser.add_argument('--password', '-p', help='Instagram password (only needed for auto-login)')
     
     args = parser.parse_args()
     
-    if not args.username or not args.password:
-        username = os.environ.get('INSTAGRAM_USERNAME')
-        password = os.environ.get('INSTAGRAM_PASSWORD')
-        
-        if not username or not password:
-            logger.error("Instagram username and password must be provided")
-            parser.print_help()
-            sys.exit(1)
-    else:
-        username = args.username
-        password = args.password
+    if args.auto_login:
+        if not args.username or not args.password:
+            username = os.environ.get('INSTAGRAM_USERNAME')
+            password = os.environ.get('INSTAGRAM_PASSWORD')
+            
+            if not username or not password:
+                logger.error("For auto-login, Instagram username and password must be provided")
+                parser.print_help()
+                sys.exit(1)
+        else:
+            username = args.username
+            password = args.password
     
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=args.headless,
+            headless=args.headless,  # Default is False from argparse
             args=['--disable-blink-features=AutomationControlled']  # Avoid detection
         )
         
@@ -188,21 +249,32 @@ def main():
         
         if cookies_loaded and is_logged_in(page):
             logger.info("Already logged in with cookies")
+            handle_post_login_dialogs(page)
         else:
-            logger.info("Logging in with username and password")
-            login_success = login_instagram(
-                username, 
-                password, 
-                page,
-                args.cookie_file
-            )
-            
-            if not login_success:
-                logger.error("Login failed")
-                browser.close()
-                sys.exit(1)
+            if args.auto_login:
+                logger.info("Using automated login with username and password")
+                login_success = login_instagram(
+                    username, 
+                    password, 
+                    page,
+                    args.cookie_file
+                )
+                
+                if not login_success:
+                    logger.error("Automated login failed")
+                    browser.close()
+                    sys.exit(1)
+            else:
+                login_success = wait_for_manual_login(page, args.cookie_file, args.timeout)
+                
+                if not login_success:
+                    logger.error("Manual login failed or timed out")
+                    browser.close()
+                    sys.exit(1)
         
         logger.info("Login successful")
+        
+        time.sleep(3)
         
         browser.close()
 
