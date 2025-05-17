@@ -290,16 +290,21 @@ class InstagramScraper:
                 comments_json = json.dumps(reel_data['comments'], ensure_ascii=False)
                 reel_data['comments_json'] = comments_json
             
+            audience_json = reel_data.get('audience_json')
+            if not audience_json and 'audience_data' in reel_data:
+                audience_json = json.dumps(reel_data['audience_data'], ensure_ascii=False)
+            
             cursor.execute('''
             INSERT OR REPLACE INTO reels (
-                reel_id, permalink, like_count, comment_count, audio_url
-            ) VALUES (?, ?, ?, ?, ?)
+                reel_id, permalink, like_count, comment_count, audio_url, audience_json
+            ) VALUES (?, ?, ?, ?, ?, ?)
             ''', (
                 reel_data.get('reel_id'),
                 reel_data.get('permalink'),
                 reel_data.get('like_count'),
                 reel_data.get('comment_count'),
-                reel_data.get('audio_url')
+                reel_data.get('audio_url'),
+                audience_json
             ))
             
             conn.commit()
