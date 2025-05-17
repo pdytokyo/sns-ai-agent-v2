@@ -101,20 +101,61 @@ def get_reels_urls(page: Page, max_reels: int = 20) -> List[str]:
     urls = []
     
     try:
-        page.wait_for_selector('article a', timeout=10000)
+        logger.info("Waiting for Instagram feed to load...")
+        page.wait_for_load_state('networkidle')
+        page.wait_for_selector('main[role="main"]', timeout=60000)
         
-        for _ in range(3):  # Scroll a few times to load more content
-            page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-            page.wait_for_timeout(2000)  # Wait for content to load
+        selectors = [
+            'a[href*="/reel/"]',                  # Direct reel links
+            'article a[href*="/p/"]',             # Post links (may contain reels)
+            'div[role="presentation"] a',         # General post links
+            'div[data-visualcompletion="media-vc-image"] a'  # Media container links
+        ]
         
-        links = page.query_selector_all('article a')
+        found_selector = False
+        for selector in selectors:
+            try:
+                logger.info(f"Trying selector: {selector}")
+                if page.wait_for_selector(selector, timeout=20000, state='attached'):
+                    logger.info(f"Found working selector: {selector}")
+                    found_selector = True
+                    
+                    # Scroll a few times to load more content
+                    for i in range(5):
+                        logger.info(f"Scrolling page ({i+1}/5)...")
+                        page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                        page.wait_for_timeout(3000)  # Wait longer for content to load
+                    
+                    links = page.query_selector_all(selector)
+                    logger.info(f"Found {len(links)} potential links with selector: {selector}")
+                    
+                    for link in links[:max_reels * 2]:  # Get more links than needed as some might not be reels
+                        href = link.get_attribute('href')
+                        if href:
+                            if '/reel/' in href or '/p/' in href:
+                                full_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
+                                if full_url not in urls:
+                                    urls.append(full_url)
+                    
+                    break  # Exit the loop if we found a working selector
+            except PlaywrightTimeoutError:
+                logger.warning(f"Selector {selector} timed out, trying next one...")
+                continue
         
-        for link in links[:max_reels]:
-            href = link.get_attribute('href')
-            if href and '/reel/' in href:
-                full_url = f"https://www.instagram.com{href}"
-                if full_url not in urls:
-                    urls.append(full_url)
+        if not found_selector:
+            logger.warning("Could not find any working selector for Reels links")
+            
+            logger.info("Using fallback method to find links...")
+            all_links = page.query_selector_all('a')
+            
+            for link in all_links:
+                href = link.get_attribute('href')
+                if href and ('/reel/' in href or '/p/' in href):
+                    full_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
+                    if full_url not in urls:
+                        urls.append(full_url)
+        
+        urls = list(dict.fromkeys(urls))[:max_reels]
         
         logger.info(f"Found {len(urls)} Reels URLs")
         return urls
@@ -141,43 +182,159 @@ def get_reel_metrics(page: Page, url: str) -> Dict[str, Any]:
     }
     
     try:
+        logger.info(f"Navigating to Reel URL: {url}")
         page.goto(url)
         page.wait_for_load_state('networkidle')
         
-        page.wait_for_selector('video', timeout=10000)
+        # Wait for the page content to load
+        logger.info("Waiting for Reel content to load...")
         
-        try:
-            views_element = page.query_selector('span:has-text("views")')
-            if views_element:
-                views_text = views_element.evaluate('el => el.previousSibling.textContent')
-                metrics['playsCount'] = extract_number(views_text)
-                logger.info(f"Plays count: {metrics['playsCount']}")
-        except Exception as e:
-            logger.warning(f"Error getting plays count: {e}")
+        video_selectors = [
+            'video',
+            'div[role="button"] video',
+            'div[data-visualcompletion="media-vc-image"] video',
+            'div[role="presentation"] video'
+        ]
         
-        profile_link = page.query_selector('header a')
-        if profile_link:
-            profile_url = profile_link.get_attribute('href')
-            if profile_url:
-                full_profile_url = f"https://www.instagram.com{profile_url}"
-                page.goto(full_profile_url)
-                page.wait_for_load_state('networkidle')
-                
-                try:
-                    page.wait_for_selector('header section ul li', timeout=5000)
+        video_found = False
+        for selector in video_selectors:
+            try:
+                logger.info(f"Trying video selector: {selector}")
+                if page.wait_for_selector(selector, timeout=20000, state='attached'):
+                    logger.info(f"Found video with selector: {selector}")
+                    video_found = True
+                    break
+            except PlaywrightTimeoutError:
+                logger.warning(f"Video selector {selector} timed out, trying next one...")
+                continue
+        
+        if not video_found:
+            logger.warning("Could not find video element, trying to proceed anyway...")
+        
+        views_selectors = [
+            'span:has-text("views")',
+            'span:has-text("次視聴")',  # Japanese "views"
+            'span:has-text("回再生")',  # Alternative Japanese "views"
+            'div[role="button"] span:has-text("view")',
+            'section span:has-text("view")'
+        ]
+        
+        for selector in views_selectors:
+            try:
+                logger.info(f"Trying views selector: {selector}")
+                views_element = page.query_selector(selector)
+                if views_element:
+                    try:
+                        views_text = views_element.evaluate('el => el.previousSibling ? el.previousSibling.textContent : null')
+                        if views_text:
+                            metrics['playsCount'] = extract_number(views_text)
+                            logger.info(f"Found plays count (method 1): {metrics['playsCount']}")
+                            break
+                    except Exception:
+                        pass
                     
-                    stats_elements = page.query_selector_all('header section ul li')
+                    try:
+                        views_text = views_element.evaluate('el => el.parentElement ? el.parentElement.textContent : null')
+                        if views_text:
+                            # Extract numbers from the text
+                            numbers = re.findall(r'[\d,.]+[KMB]?', views_text)
+                            if numbers:
+                                metrics['playsCount'] = extract_number(numbers[0])
+                                logger.info(f"Found plays count (method 2): {metrics['playsCount']}")
+                                break
+                    except Exception:
+                        pass
                     
-                    if len(stats_elements) >= 2:
-                        followers_element = stats_elements[1]
-                        followers_text = followers_element.inner_text()
+                    try:
+                        views_text = views_element.inner_text()
+                        numbers = re.findall(r'[\d,.]+[KMB]?', views_text)
+                        if numbers:
+                            metrics['playsCount'] = extract_number(numbers[0])
+                            logger.info(f"Found plays count (method 3): {metrics['playsCount']}")
+                            break
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning(f"Error with views selector {selector}: {e}")
+        
+        if metrics['playsCount'] == 0:
+            logger.warning("Could not find plays count with any method")
+        
+        profile_selectors = [
+            'header a',
+            'a[role="link"][tabindex="0"]',
+            'div[role="button"] a[role="link"]',
+            'h2 a',
+            'section a'
+        ]
+        
+        profile_found = False
+        for selector in profile_selectors:
+            try:
+                logger.info(f"Trying profile selector: {selector}")
+                profile_link = page.query_selector(selector)
+                if profile_link:
+                    profile_url = profile_link.get_attribute('href')
+                    if profile_url and ('/' in profile_url) and not ('/explore/' in profile_url) and not ('/reels/' in profile_url):
+                        logger.info(f"Found profile URL: {profile_url}")
+                        full_profile_url = f"https://www.instagram.com{profile_url}" if profile_url.startswith('/') else profile_url
                         
-                        if 'followers' in followers_text.lower():
-                            followers_count_text = followers_text.split('followers')[0].strip()
-                            metrics['ownerFollowersCount'] = extract_number(followers_count_text)
-                            logger.info(f"Followers count: {metrics['ownerFollowersCount']}")
-                except Exception as e:
-                    logger.warning(f"Error getting followers count: {e}")
+                        logger.info(f"Navigating to profile page: {full_profile_url}")
+                        page.goto(full_profile_url)
+                        page.wait_for_load_state('networkidle')
+                        
+                        logger.info("Waiting for profile page to load...")
+                        page.wait_for_selector('main[role="main"]', timeout=60000)
+                        
+                        followers_selectors = [
+                            'header section ul li',
+                            'section ul li',
+                            'span:has-text("followers")',
+                            'span:has-text("フォロワー")'  # Japanese "followers"
+                        ]
+                        
+                        for f_selector in followers_selectors:
+                            try:
+                                logger.info(f"Trying followers selector: {f_selector}")
+                                if 'li' in f_selector:
+                                    stats_elements = page.query_selector_all(f_selector)
+                                    
+                                    if len(stats_elements) >= 2:
+                                        for i, element in enumerate(stats_elements):
+                                            followers_text = element.inner_text().lower()
+                                            if 'followers' in followers_text or 'フォロワー' in followers_text:
+                                                numbers = re.findall(r'[\d,.]+[KMB]?', followers_text)
+                                                if numbers:
+                                                    metrics['ownerFollowersCount'] = extract_number(numbers[0])
+                                                    logger.info(f"Found followers count (method 1): {metrics['ownerFollowersCount']}")
+                                                    profile_found = True
+                                                    break
+                                else:
+                                    followers_element = page.query_selector(f_selector)
+                                    if followers_element:
+                                        followers_text = followers_element.inner_text()
+                                        if not followers_text:
+                                            followers_text = followers_element.evaluate('el => el.parentElement ? el.parentElement.textContent : ""')
+                                        
+                                        numbers = re.findall(r'[\d,.]+[KMB]?', followers_text)
+                                        if numbers:
+                                            metrics['ownerFollowersCount'] = extract_number(numbers[0])
+                                            logger.info(f"Found followers count (method 2): {metrics['ownerFollowersCount']}")
+                                            profile_found = True
+                                            break
+                            except Exception as e:
+                                logger.warning(f"Error with followers selector {f_selector}: {e}")
+                            
+                            if profile_found:
+                                break
+                        
+                        if profile_found:
+                            break
+            except Exception as e:
+                logger.warning(f"Error with profile selector {selector}: {e}")
+        
+        if metrics['ownerFollowersCount'] == 0:
+            logger.warning("Could not find followers count with any method")
         
         return metrics
     
@@ -253,17 +410,89 @@ def scrape_reels(
         headless: Run browser in headless mode
     """
     with sync_playwright() as p:
+        chrome_path = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        logger.info(f"Using real Chrome browser at: {chrome_path}")
+        
         browser = p.chromium.launch(
             headless=headless,
-            args=['--disable-blink-features=AutomationControlled']  # Avoid detection
+            executable_path=chrome_path,
+            args=[
+                '--disable-blink-features=AutomationControlled',  # Avoid detection
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-site-isolation-trials',
+                '--disable-web-security',
+                '--disable-features=BlockInsecurePrivateNetworkRequests',
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
         )
         
         context = browser.new_context(
             viewport={'width': 1280, 'height': 800},
-            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+            locale='ja-JP',
+            timezone_id='Asia/Tokyo',
+            color_scheme='light',
+            has_touch=True
         )
         
         page = context.new_page()
+        
+        # Apply stealth JavaScript to avoid bot detection
+        page.add_init_script("""
+        Object.defineProperty(navigator, 'webdriver', {
+            get: () => false,
+            configurable: true
+        });
+        
+        // Hide automation-related properties
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters) => (
+            parameters.name === 'notifications' || 
+            parameters.name === 'clipboard-read' || 
+            parameters.name === 'clipboard-write' ?
+            Promise.resolve({state: 'granted'}) :
+            originalQuery(parameters)
+        );
+        """)
+        
+        page.add_init_script("""
+        (() => {
+            const originalMouseMove = window.MouseEvent.prototype.constructor;
+            
+            let lastTime = 0;
+            let lastX = 0;
+            let lastY = 0;
+            
+            window.MouseEvent.prototype.constructor = function(...args) {
+                if (args[0] === 'mousemove') {
+                    const now = Date.now();
+                    const dt = now - lastTime;
+                    
+                    if (dt < 5) {
+                        // Add slight randomness to consecutive mousemove events
+                        const event = args[1] || {};
+                        if (typeof event.clientX === 'number' && typeof event.clientY === 'number') {
+                            const dx = event.clientX - lastX;
+                            const dy = event.clientY - lastY;
+                            
+                            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+                                event.clientX += (Math.random() - 0.5) * 2;
+                                event.clientY += (Math.random() - 0.5) * 2;
+                            }
+                            
+                            lastX = event.clientX;
+                            lastY = event.clientY;
+                        }
+                    }
+                    
+                    lastTime = now;
+                }
+                
+                return originalMouseMove.apply(this, args);
+            };
+        })();
+        """)
         
         try:
             cookies_loaded = load_cookies(context, cookie_file)
