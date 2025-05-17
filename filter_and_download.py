@@ -1,6 +1,7 @@
 """
 Filter and download Instagram Reels from results.json
-- Filters posts containing "/reel/" and with likesCount >= 500
+- Filters posts containing "/reel/"
+- Filters reels where playsCount is at least 5 times ownerFollowersCount
 - Downloads mp4 files using yt-dlp to the downloads folder
 """
 
@@ -48,7 +49,7 @@ def load_results(file_path: str = 'results.json') -> List[Dict[str, Any]]:
 
 def filter_reels(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Filter results to only include reels with likesCount >= 500
+    Filter results to only include reels where playsCount is at least 5 times ownerFollowersCount
     
     Args:
         results: List of result items
@@ -60,12 +61,22 @@ def filter_reels(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     
     for item in results:
         url = item.get('url', '')
-        likes_count = item.get('likesCount', 0)
+        plays_count = item.get('playsCount', 0)
+        followers_count = item.get('ownerFollowersCount', 0)
         
-        if '/reel/' in url and likes_count >= 500:
+        if '/reel/' not in url:
+            continue
+            
+        if plays_count == 0 or followers_count == 0:
+            logger.warning(f"Skipping {url}: Missing playsCount or ownerFollowersCount data")
+            continue
+        
+        engagement_ratio = plays_count / followers_count if followers_count > 0 else 0
+        if engagement_ratio >= 5:
+            logger.info(f"Reel {url} has engagement ratio: {engagement_ratio:.2f} (plays: {plays_count}, followers: {followers_count})")
             filtered.append(item)
     
-    logger.info(f"Found {len(filtered)} reels with 500+ likes out of {len(results)} total posts")
+    logger.info(f"Found {len(filtered)} reels with plays/followers ratio ≥ 5 out of {len(results)} total posts")
     return filtered
 
 def check_yt_dlp_installed() -> bool:
@@ -154,7 +165,7 @@ def main():
     filtered_reels = filter_reels(results)
     
     if not filtered_reels:
-        logger.warning("No reels matched the criteria (must contain '/reel/' and have 500+ likes)")
+        logger.warning("No reels matched the criteria (must contain '/reel/' and have plays/followers ratio ≥ 5)")
         sys.exit(0)
     
     download_reels(filtered_reels)
