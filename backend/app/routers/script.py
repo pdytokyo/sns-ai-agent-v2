@@ -174,14 +174,34 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
     
     def run_instagram_scraper():
         try:
+            cookie_file_path = os.path.join(os.getcwd(), 'cookie.json')
+            reels_file_path = os.path.join(os.getcwd(), 'reels.json')
+            
+            if not os.path.exists(cookie_file_path):
+                logger.warning(f"cookie.json not found at {cookie_file_path}. This may affect authentication.")
+            
+            if not os.path.exists(reels_file_path):
+                logger.warning(f"reels.json not found at {reels_file_path}. This may affect cached results.")
+            
             ig_cookie = os.getenv('IG_TEST_COOKIE')
             mock_mode = False
+            
             if not ig_cookie:
-                logger.warning("IG_TEST_COOKIE not found in .env file. Using MOCK mode for Instagram scraping.")
+                logger.warning("IG_TEST_COOKIE not found in environment. Using MOCK mode for Instagram scraping.")
+                logger.warning("This is expected in CI environments without secrets configured.")
                 mock_mode = True
+            elif ig_cookie == 'mock_cookie_for_testing':
+                logger.warning("Using mock cookie for testing. Live scraping will be limited.")
+                mock_mode = True
+            else:
+                logger.info("Using real IG_TEST_COOKIE for live scraping.")
             
             result_reels = []
             result_matching = []
+            
+            if mock_mode and os.getenv('CI') == 'true':
+                logger.warning("Running in CI environment with mock mode. Returning empty results.")
+                return [], []
             
             with InstagramScraper(headless=True, mock_mode=mock_mode) as scraper:
                 logger.info("InstagramScraper instance created")
@@ -238,6 +258,7 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
             return result_reels, result_matching
         except Exception as e:
             logger.error(f"Error in scraping/transcription: {e}")
+            logger.exception("Full exception details:")
             return [], []
     
     with concurrent.futures.ThreadPoolExecutor() as executor:

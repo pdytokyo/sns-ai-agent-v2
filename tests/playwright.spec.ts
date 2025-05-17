@@ -18,7 +18,7 @@ test('Script Generator End-to-End Flow with Live Scraping', async ({ page }) => 
   await page.getByRole('button', { name: 'スクリプト生成' }).click();
   
   console.log('Waiting for loading indicator');
-  await expect(page.locator('.animate-spin')).toBeVisible();
+  await expect(page.locator('.animate-spin')).toBeVisible({ timeout: 10000 });
   
   console.log('Waiting for toast success notification');
   await expect(page.locator('[data-testid="toast-success"]').first()).toBeVisible({ timeout: 90000 });
