@@ -484,7 +484,14 @@ class InstagramScraper:
         
         result = {}
         
-        if reel.get('audio_url'):
+        if isinstance(reel, dict):
+            has_audio_url = reel.get('audio_url')
+            has_permalink = reel.get('permalink')
+        else:
+            has_audio_url = 'audio_url' in reel and reel['audio_url']
+            has_permalink = 'permalink' in reel and reel['permalink']
+            
+        if has_audio_url:
             audio_path = os.path.join(media_dir, f"{reel_id}.mp3")
             
             try:
@@ -499,7 +506,7 @@ class InstagramScraper:
             except Exception as e:
                 logger.error(f"Error downloading audio: {e}")
         
-        if need_video and reel.get('permalink'):
+        if need_video and has_permalink:
             video_path = os.path.join(media_dir, f"{reel_id}.mp4")
             
             try:
@@ -516,7 +523,7 @@ class InstagramScraper:
                 UPDATE reels SET local_video = ? WHERE reel_id = ?
                 ''', (video_path, reel_id))
                 
-                if not reel.get('audio_url'):
+                if not has_audio_url:
                     audio_path = os.path.join(media_dir, f"{reel_id}.mp3")
                     subprocess.run([
                         'ffmpeg',
