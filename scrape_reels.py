@@ -73,15 +73,58 @@ def navigate_to_hashtag(page: Page, hashtag: str) -> bool:
         encoded_hashtag = quote(hashtag)
         url = f"https://www.instagram.com/explore/tags/{encoded_hashtag}/"
         
-        page.goto(url)
-        page.wait_for_load_state('networkidle')
+        logger.info(f"Navigating to hashtag URL: {url}")
+        
+        page.goto(url, timeout=60000, wait_until='domcontentloaded')
+        
+        # Wait for multiple load states to ensure page is fully loaded
+        logger.info("Waiting for page to load completely...")
+        page.wait_for_load_state('domcontentloaded')
+        page.wait_for_load_state('networkidle', timeout=60000)
         
         if "Page Not Found" in page.title():
             logger.error(f"Hashtag page not found: {hashtag}")
             return False
         
-        logger.info(f"Successfully navigated to hashtag page: {hashtag}")
-        return True
+        end_message_selectors = [
+            'span:has-text("以上です")',
+            'span:has-text("おすすめの投稿")',
+            'span:has-text("End of Results")',
+            'span:has-text("Suggested Posts")'
+        ]
+        
+        for selector in end_message_selectors:
+            try:
+                if page.query_selector(selector):
+                    logger.warning(f"Found end message '{selector}' on hashtag page: {hashtag}")
+                    return False
+            except Exception:
+                pass
+        
+        expected_selectors = [
+            'main[role="main"]',
+            'h1:has-text("#")',
+            'h2:has-text("#")',
+            'div[role="tablist"]'
+        ]
+        
+        for selector in expected_selectors:
+            try:
+                if page.wait_for_selector(selector, timeout=10000, state='attached'):
+                    logger.info(f"Found expected element {selector} on hashtag page")
+                    logger.info(f"Successfully navigated to hashtag page: {hashtag}")
+                    return True
+            except PlaywrightTimeoutError:
+                continue
+        
+        current_url = page.url
+        if f"/explore/tags/{encoded_hashtag}" in current_url:
+            logger.info(f"URL verification successful: {current_url}")
+            logger.info(f"Successfully navigated to hashtag page: {hashtag}")
+            return True
+        else:
+            logger.warning(f"URL verification failed. Current URL: {current_url}, Expected: {url}")
+            return False
     
     except Exception as e:
         logger.error(f"Error navigating to hashtag page: {e}")
@@ -102,32 +145,82 @@ def get_reels_urls(page: Page, max_reels: int = 20) -> List[str]:
     
     try:
         logger.info("Waiting for Instagram feed to load...")
-        page.wait_for_load_state('networkidle')
-        page.wait_for_selector('main[role="main"]', timeout=60000)
         
-        selectors = [
+        # Wait for multiple load states to ensure content is loaded
+        page.wait_for_load_state('domcontentloaded')
+        page.wait_for_load_state('networkidle', timeout=60000)
+        
+        end_message_selectors = [
+            'span:has-text("以上です")',
+            'span:has-text("おすすめの投稿")',
+            'span:has-text("End of Results")',
+            'span:has-text("Suggested Posts")'
+        ]
+        
+        for selector in end_message_selectors:
+            try:
+                if page.query_selector(selector):
+                    logger.warning(f"Found end message '{selector}' on page, no Reels to scrape")
+                    return urls
+            except Exception:
+                pass
+        
+        # Wait for main content container
+        main_selectors = [
+            'main[role="main"]',
+            'div[role="main"]',
+            'article',
+            'div[data-visualcompletion="ignore-dynamic"]'
+        ]
+        
+        main_found = False
+        for selector in main_selectors:
+            try:
+                logger.info(f"Waiting for main content selector: {selector}")
+                if page.wait_for_selector(selector, timeout=60000, state='attached'):
+                    logger.info(f"Found main content with selector: {selector}")
+                    main_found = True
+                    break
+            except PlaywrightTimeoutError:
+                logger.warning(f"Main content selector {selector} timed out, trying next one...")
+                continue
+        
+        if not main_found:
+            logger.error("Could not find main content container, page may not have loaded correctly")
+            try:
+                screenshot_path = f"hashtag_page_error_{int(time.time())}.png"
+                page.screenshot(path=screenshot_path)
+                logger.info(f"Saved error screenshot to {screenshot_path}")
+            except Exception as e:
+                logger.error(f"Failed to save screenshot: {e}")
+            return urls
+        
+        # Scroll a few times to load more content before looking for links
+        logger.info("Scrolling to load more content...")
+        for i in range(5):
+            logger.info(f"Scrolling page ({i+1}/5)...")
+            page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            page.wait_for_timeout(3000)  # Wait longer for content to load
+        
+        link_selectors = [
             'a[href*="/reel/"]',                  # Direct reel links
             'article a[href*="/p/"]',             # Post links (may contain reels)
             'div[role="presentation"] a',         # General post links
-            'div[data-visualcompletion="media-vc-image"] a'  # Media container links
+            'div[data-visualcompletion="media-vc-image"] a',  # Media container links
+            'div[role="button"] a',               # Button links
+            'a[role="link"]',                     # General links
+            'div._aagv a'                         # Instagram specific class
         ]
         
         found_selector = False
-        for selector in selectors:
+        for selector in link_selectors:
             try:
-                logger.info(f"Trying selector: {selector}")
-                if page.wait_for_selector(selector, timeout=20000, state='attached'):
-                    logger.info(f"Found working selector: {selector}")
-                    found_selector = True
-                    
-                    # Scroll a few times to load more content
-                    for i in range(5):
-                        logger.info(f"Scrolling page ({i+1}/5)...")
-                        page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-                        page.wait_for_timeout(3000)  # Wait longer for content to load
-                    
-                    links = page.query_selector_all(selector)
+                logger.info(f"Trying link selector: {selector}")
+                links = page.query_selector_all(selector)
+                
+                if links and len(links) > 0:
                     logger.info(f"Found {len(links)} potential links with selector: {selector}")
+                    found_selector = True
                     
                     for link in links[:max_reels * 2]:  # Get more links than needed as some might not be reels
                         href = link.get_attribute('href')
@@ -136,32 +229,57 @@ def get_reels_urls(page: Page, max_reels: int = 20) -> List[str]:
                                 full_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
                                 if full_url not in urls:
                                     urls.append(full_url)
+                                    logger.info(f"Found Reel URL: {full_url}")
                     
-                    break  # Exit the loop if we found a working selector
-            except PlaywrightTimeoutError:
-                logger.warning(f"Selector {selector} timed out, trying next one...")
+                    if urls:
+                        break  # Exit the loop if we found some URLs
+            except Exception as e:
+                logger.warning(f"Error with link selector {selector}: {e}")
                 continue
         
-        if not found_selector:
-            logger.warning("Could not find any working selector for Reels links")
+        if not found_selector or not urls:
+            logger.warning("Could not find any working selector for Reels links, using fallback method")
             
-            logger.info("Using fallback method to find links...")
-            all_links = page.query_selector_all('a')
-            
-            for link in all_links:
-                href = link.get_attribute('href')
-                if href and ('/reel/' in href or '/p/' in href):
-                    full_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
-                    if full_url not in urls:
-                        urls.append(full_url)
+            try:
+                all_links = page.query_selector_all('a')
+                logger.info(f"Fallback: found {len(all_links)} total links on page")
+                
+                for link in all_links:
+                    try:
+                        href = link.get_attribute('href')
+                        if href and ('/reel/' in href or '/p/' in href):
+                            full_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
+                            if full_url not in urls:
+                                urls.append(full_url)
+                                logger.info(f"Fallback: found Reel URL: {full_url}")
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.error(f"Fallback method failed: {e}")
         
         urls = list(dict.fromkeys(urls))[:max_reels]
         
-        logger.info(f"Found {len(urls)} Reels URLs")
+        if not urls:
+            logger.warning("No Reels URLs found on the page")
+            try:
+                screenshot_path = f"no_reels_found_{int(time.time())}.png"
+                page.screenshot(path=screenshot_path)
+                logger.info(f"Saved 'no reels found' screenshot to {screenshot_path}")
+            except Exception as e:
+                logger.error(f"Failed to save screenshot: {e}")
+        else:
+            logger.info(f"Found {len(urls)} Reels URLs")
+        
         return urls
     
     except Exception as e:
         logger.error(f"Error getting Reels URLs: {e}")
+        try:
+            screenshot_path = f"get_reels_error_{int(time.time())}.png"
+            page.screenshot(path=screenshot_path)
+            logger.info(f"Saved error screenshot to {screenshot_path}")
+        except Exception:
+            pass
         return urls
 
 def get_reel_metrics(page: Page, url: str) -> Dict[str, Any]:
