@@ -1,7 +1,7 @@
 """
 Instagram Reels Scraper
 
-This script scrapes Instagram Reels from hashtag pages and filters them based on engagement metrics.
+This script scrapes Instagram Reels from the Explore page and filters them based on engagement metrics.
 It uses Playwright for browser automation and saves the results to a JSON file.
 """
 
@@ -58,22 +58,20 @@ def extract_number(text: str) -> int:
     
     return int(number)
 
-def navigate_to_hashtag(page: Page, hashtag: str) -> bool:
+def navigate_to_explore_page(page: Page) -> bool:
     """
-    Navigate to Instagram hashtag page
+    Navigate to Instagram Explore page
     
     Args:
         page: Playwright page
-        hashtag: Hashtag to search for (without #)
         
     Returns:
         True if navigation successful, False otherwise
     """
     try:
-        encoded_hashtag = quote(hashtag)
-        url = f"https://www.instagram.com/explore/tags/{encoded_hashtag}/"
+        url = "https://www.instagram.com/explore/"
         
-        logger.info(f"Navigating to hashtag URL: {url}")
+        logger.info(f"Navigating to Explore page URL: {url}")
         
         page.goto(url, timeout=60000, wait_until='domcontentloaded')
         
@@ -83,7 +81,7 @@ def navigate_to_hashtag(page: Page, hashtag: str) -> bool:
         page.wait_for_load_state('networkidle', timeout=60000)
         
         if "Page Not Found" in page.title():
-            logger.error(f"Hashtag page not found: {hashtag}")
+            logger.error("Explore page not found")
             return False
         
         end_message_selectors = [
@@ -96,43 +94,43 @@ def navigate_to_hashtag(page: Page, hashtag: str) -> bool:
         for selector in end_message_selectors:
             try:
                 if page.query_selector(selector):
-                    logger.warning(f"Found end message '{selector}' on hashtag page: {hashtag}")
+                    logger.warning(f"Found end message '{selector}' on Explore page")
                     return False
             except Exception:
                 pass
         
         expected_selectors = [
             'main[role="main"]',
-            'h1:has-text("#")',
-            'h2:has-text("#")',
-            'div[role="tablist"]'
+            'div[role="main"]',
+            'article',
+            'div[data-visualcompletion="ignore-dynamic"]'
         ]
         
         for selector in expected_selectors:
             try:
                 if page.wait_for_selector(selector, timeout=10000, state='attached'):
-                    logger.info(f"Found expected element {selector} on hashtag page")
-                    logger.info(f"Successfully navigated to hashtag page: {hashtag}")
+                    logger.info(f"Found expected element {selector} on Explore page")
+                    logger.info("Successfully navigated to Explore page")
                     return True
             except PlaywrightTimeoutError:
                 continue
         
         current_url = page.url
-        if f"/explore/tags/{encoded_hashtag}" in current_url:
+        if "/explore/" in current_url:
             logger.info(f"URL verification successful: {current_url}")
-            logger.info(f"Successfully navigated to hashtag page: {hashtag}")
+            logger.info("Successfully navigated to Explore page")
             return True
         else:
             logger.warning(f"URL verification failed. Current URL: {current_url}, Expected: {url}")
             return False
     
     except Exception as e:
-        logger.error(f"Error navigating to hashtag page: {e}")
+        logger.error(f"Error navigating to Explore page: {e}")
         return False
 
 def get_reels_urls(page: Page, max_reels: int = 20) -> List[str]:
     """
-    Get URLs of Reels from hashtag page
+    Get URLs of Reels from Instagram Explore page
     
     Args:
         page: Playwright page
@@ -188,7 +186,7 @@ def get_reels_urls(page: Page, max_reels: int = 20) -> List[str]:
         if not main_found:
             logger.error("Could not find main content container, page may not have loaded correctly")
             try:
-                screenshot_path = f"hashtag_page_error_{int(time.time())}.png"
+                screenshot_path = f"explore_page_error_{int(time.time())}.png"
                 page.screenshot(path=screenshot_path)
                 logger.info(f"Saved error screenshot to {screenshot_path}")
             except Exception as e:
@@ -509,7 +507,6 @@ def save_to_json(data: List[Dict[str, Any]], output_file: str = 'output_reels.js
         logger.error(f"Error saving data to {output_file}: {e}")
 
 def scrape_reels(
-    hashtag: str,
     cookie_file: str = 'cookie.json',
     output_file: str = 'output_reels.json',
     max_reels: int = 20,
@@ -517,10 +514,9 @@ def scrape_reels(
     headless: bool = False
 ) -> None:
     """
-    Scrape Instagram Reels from hashtag page
+    Scrape Instagram Reels from Explore page
     
     Args:
-        hashtag: Hashtag to search for (without #)
         cookie_file: Path to cookie file
         output_file: Output file path
         max_reels: Maximum number of Reels to collect
@@ -620,14 +616,14 @@ def scrape_reels(
                 browser.close()
                 sys.exit(1)
             
-            if not navigate_to_hashtag(page, hashtag):
+            if not navigate_to_explore_page(page):
                 browser.close()
                 sys.exit(1)
             
             urls = get_reels_urls(page, max_reels)
             
             if not urls:
-                logger.warning(f"No Reels found for hashtag: {hashtag}")
+                logger.warning("No Reels found on Explore page")
                 browser.close()
                 sys.exit(0)
             
@@ -653,8 +649,7 @@ def main():
     """Main function"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Instagram Reels Scraper')
-    parser.add_argument('hashtag', help='Hashtag to search for (without #)')
+    parser = argparse.ArgumentParser(description='Instagram Reels Scraper for Explore Page')
     parser.add_argument('--cookie-file', '-c', default='cookie.json', help='Path to cookie file')
     parser.add_argument('--output-file', '-o', default='output_reels.json', help='Output file path')
     parser.add_argument('--max-reels', '-m', type=int, default=20, help='Maximum number of Reels to collect')
@@ -664,7 +659,6 @@ def main():
     args = parser.parse_args()
     
     scrape_reels(
-        args.hashtag,
         args.cookie_file,
         args.output_file,
         args.max_reels,
