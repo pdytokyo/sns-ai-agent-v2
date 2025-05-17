@@ -10,16 +10,203 @@ import os
 import sys
 import time
 import logging
+import random
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
-from playwright.sync_api import sync_playwright, Page, Browser, BrowserContext
+from playwright.sync_api import sync_playwright, Page, Browser, BrowserContext, TimeoutError as PlaywrightTimeoutError
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('login_instagram')
+
+MOBILE_USER_AGENTS = [
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 13_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.105 Mobile Safari/537.36",
+]
+
+DEVICE_VIEWPORTS = [
+    {"width": 375, "height": 812},  # iPhone X/XS/11 Pro
+    {"width": 414, "height": 896},  # iPhone XR/XS Max/11/11 Pro Max
+    {"width": 390, "height": 844},  # iPhone 12/12 Pro
+    {"width": 428, "height": 926},  # iPhone 12 Pro Max
+    {"width": 360, "height": 800},  # Samsung Galaxy S10/S20
+    {"width": 412, "height": 915},  # Samsung Galaxy S21/S22
+    {"width": 393, "height": 851},  # Google Pixel 5
+]
+
+TIMEZONES = [
+    "Asia/Tokyo",
+    "Asia/Seoul",
+    "Asia/Shanghai",
+    "Asia/Singapore",
+    "Asia/Kuala_Lumpur",
+    "Asia/Bangkok",
+    "Asia/Jakarta",
+    "Asia/Manila",
+    "Asia/Taipei",
+    "Asia/Hong_Kong",
+]
+
+LANGUAGES = [
+    "ja-JP",
+    "ko-KR",
+    "zh-CN",
+    "zh-TW",
+    "en-US",
+    "en-GB",
+    "th-TH",
+    "id-ID",
+    "vi-VN",
+    "ms-MY",
+]
+
+def get_stealth_config() -> Dict[str, Any]:
+    """
+    Generate stealth configuration to avoid bot detection
+    
+    Returns:
+        Dictionary with stealth configuration
+    """
+    user_agent = random.choice(MOBILE_USER_AGENTS)
+    
+    viewport = random.choice(DEVICE_VIEWPORTS)
+    
+    timezone_id = random.choice(TIMEZONES)
+    
+    locale = random.choice(LANGUAGES)
+    
+    geolocation = {
+        "latitude": random.uniform(10.0, 40.0),
+        "longitude": random.uniform(100.0, 145.0),
+        "accuracy": random.uniform(10.0, 100.0)
+    }
+    
+    config = {
+        "user_agent": user_agent,
+        "viewport": viewport,
+        "locale": locale,
+        "timezone_id": timezone_id,
+        "geolocation": geolocation,
+        "color_scheme": "light",
+        "reduced_motion": "no-preference",
+        "has_touch": True,
+        "is_mobile": True,
+        "device_scale_factor": random.choice([1.0, 2.0, 3.0])
+    }
+    
+    return config
+
+def apply_stealth_js(page: Page) -> None:
+    """
+    Apply stealth JavaScript to avoid bot detection
+    
+    Args:
+        page: Playwright page
+    """
+    page.add_init_script("""
+    Object.defineProperty(navigator, 'webdriver', {
+        get: () => false,
+        configurable: true
+    });
+    
+    // Hide automation-related properties
+    const originalQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' || 
+        parameters.name === 'clipboard-read' || 
+        parameters.name === 'clipboard-write' ?
+        Promise.resolve({state: 'granted'}) :
+        originalQuery(parameters)
+    );
+    
+    // Add missing plugins
+    Object.defineProperty(navigator, 'plugins', {
+        get: () => [
+            {
+                0: {type: "application/x-google-chrome-pdf", suffixes: "pdf", description: "Portable Document Format"},
+                description: "Portable Document Format",
+                filename: "internal-pdf-viewer",
+                length: 1,
+                name: "Chrome PDF Plugin"
+            },
+            {
+                0: {type: "application/pdf", suffixes: "pdf", description: "Portable Document Format"},
+                description: "Portable Document Format",
+                filename: "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+                length: 1,
+                name: "Chrome PDF Viewer"
+            },
+            {
+                0: {type: "application/x-nacl", suffixes: "", description: "Native Client Executable"},
+                1: {type: "application/x-pnacl", suffixes: "", description: "Portable Native Client Executable"},
+                description: "Native Client",
+                filename: "internal-nacl-plugin",
+                length: 2,
+                name: "Native Client"
+            }
+        ],
+        configurable: true
+    });
+    
+    // Add language data
+    Object.defineProperty(navigator, 'languages', {
+        get: () => ['ja-JP', 'ja', 'en-US', 'en'],
+        configurable: true
+    });
+    
+    // Modify user agent data
+    if (navigator.userAgentData) {
+        Object.defineProperty(navigator.userAgentData, 'mobile', {
+            get: () => true,
+            configurable: true
+        });
+    }
+    """)
+    
+    page.add_init_script("""
+    (() => {
+        const originalMouseMove = window.MouseEvent.prototype.constructor;
+        
+        let lastTime = 0;
+        let lastX = 0;
+        let lastY = 0;
+        
+        window.MouseEvent.prototype.constructor = function(...args) {
+            if (args[0] === 'mousemove') {
+                const now = Date.now();
+                const dt = now - lastTime;
+                
+                if (dt < 5) {
+                    // Add slight randomness to consecutive mousemove events
+                    const event = args[1] || {};
+                    if (typeof event.clientX === 'number' && typeof event.clientY === 'number') {
+                        const dx = event.clientX - lastX;
+                        const dy = event.clientY - lastY;
+                        
+                        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+                            event.clientX += (Math.random() - 0.5) * 2;
+                            event.clientY += (Math.random() - 0.5) * 2;
+                        }
+                        
+                        lastX = event.clientX;
+                        lastY = event.clientY;
+                    }
+                }
+                
+                lastTime = now;
+            }
+            
+            return originalMouseMove.apply(this, args);
+        };
+    })();
+    """)
 
 def save_cookies(context: BrowserContext, cookie_file: str = 'cookie.json') -> None:
     """
@@ -233,17 +420,42 @@ def main():
             password = args.password
     
     with sync_playwright() as p:
+        chrome_path = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        logger.info(f"Using real Chrome browser at: {chrome_path}")
+        
         browser = p.chromium.launch(
             headless=args.headless,  # Default is False from argparse
-            args=['--disable-blink-features=AutomationControlled']  # Avoid detection
+            executable_path=chrome_path,
+            args=[
+                '--disable-blink-features=AutomationControlled',  # Avoid detection
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-site-isolation-trials',
+                '--disable-web-security',
+                '--disable-features=BlockInsecurePrivateNetworkRequests',
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
         )
         
+        stealth_config = get_stealth_config()
+        
         context = browser.new_context(
-            viewport={'width': 1280, 'height': 800},
-            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+            viewport=stealth_config['viewport'],
+            user_agent=stealth_config['user_agent'],
+            locale=stealth_config['locale'],
+            timezone_id=stealth_config['timezone_id'],
+            geolocation=stealth_config['geolocation'],
+            color_scheme=stealth_config['color_scheme'],
+            reduced_motion=stealth_config['reduced_motion'],
+            has_touch=stealth_config['has_touch'],
+            is_mobile=stealth_config['is_mobile'],
+            device_scale_factor=stealth_config['device_scale_factor']
         )
         
         page = context.new_page()
+        
+        # Apply stealth JavaScript to avoid bot detection
+        apply_stealth_js(page)
         
         cookies_loaded = load_cookies(context, args.cookie_file)
         
