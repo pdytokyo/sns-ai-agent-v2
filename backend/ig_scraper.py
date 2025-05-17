@@ -343,6 +343,7 @@ class InstagramScraper:
             """)
         
         audience_data = self._analyze_comments(comments)
+        logger.info(f"Audience data for {reel_id}: {audience_data}")
         
         cursor.execute('''
         UPDATE reels SET audience_json = ? WHERE reel_id = ?

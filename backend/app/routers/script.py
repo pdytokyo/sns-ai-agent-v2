@@ -209,6 +209,8 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
                             if key in audience_data and audience_data[key] == value:
                                 match_score += 1
                         
+                        logger.info(f"Match score for {reel['reel_id']}: {match_score}")
+                        
                         if match_score > 0:
                             # Download and transcribe
                             media_result = scraper.download_and_transcribe(
