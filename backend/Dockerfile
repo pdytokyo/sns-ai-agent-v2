@@ -9,6 +9,14 @@ RUN apt-get update && \
     wget \
     gnupg \
     ca-certificates \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libatspi2.0-0 \
+    libxcomposite1 \
+    libxdamage1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,6 +28,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright browsers
 RUN playwright install chromium
+RUN playwright install-deps
 
 # Copy application code
 COPY . .
