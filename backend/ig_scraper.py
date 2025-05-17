@@ -613,6 +613,27 @@ class InstagramScraper:
             comment_count = random.randint(50, 500)
             view_count = int(like_count / (engagement_rate / 100))
             
+            # Generate mock audience data that includes the keyword as an interest
+            age_groups = ['13-17', '18-24', '25-34', '35-44', '45+', 'unknown']
+            genders = ['male', 'female', 'unknown']
+            interests = ['beauty', 'fashion', 'food', 'travel', 'fitness', 
+                        'tech', 'education', 'business', 'entertainment', 'gaming']
+            
+            if keyword.lower() not in interests:
+                interests.append(keyword.lower())
+            
+            # Create mock audience data
+            audience_data = {
+                'age': random.choice(age_groups),
+                'gender': random.choice(genders),
+                'interests': random.sample(interests, min(3, len(interests))),
+                'keywords': [keyword] + random.sample(interests, min(2, len(interests)))
+            }
+            
+            if i == 0:
+                audience_data['interests'] = [keyword.lower()] + random.sample(interests, min(2, len(interests)))
+                audience_data['age'] = 'unknown'  # Match the target we're testing with
+            
             mock_reel = {
                 'reel_id': reel_id,
                 'permalink': f"https://www.instagram.com/reel/mock_{reel_id}/",
@@ -621,10 +642,13 @@ class InstagramScraper:
                 'view_count': view_count,
                 'engagement_rate': engagement_rate,
                 'scraped_at': datetime.now().isoformat(),
-                'transcript': f"これは「{keyword}」に関するモックのトランスクリプトです。実際のコンテンツではありません。"
+                'transcript': f"これは「{keyword}」に関するモックのトランスクリプトです。実際のコンテンツではありません。",
+                'audience_json': json.dumps(audience_data, ensure_ascii=False)
             }
             
             self._save_reel_to_db(mock_reel)
+            
+            mock_reel['audience_data'] = audience_data
             
             mock_reels.append(mock_reel)
         
