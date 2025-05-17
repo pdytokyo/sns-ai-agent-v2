@@ -183,7 +183,7 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
             top_reels = scraper.search_reels_by_keyword(
                 main_keyword, 
                 top_count=10, 
-                min_engagement=2.0
+                min_engagement=0.5
             )
             
             three_months_ago = datetime.now() - timedelta(days=90)
