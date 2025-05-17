@@ -148,6 +148,7 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
     6. Return formatted scripts for UI workflow
     7. Store edits and embed for future reference (handled by save endpoint)
     """
+    import concurrent.futures
     from ig_scraper import InstagramScraper
     
     if not request.theme:
@@ -171,51 +172,61 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
     matching_reels = []
     top_reels = []
     
-    try:
-        ig_cookie = os.getenv('IG_COOKIE')
-        mock_mode = False
-        if not ig_cookie:
-            logger.warning("IG_COOKIE not found in .env file. Using MOCK mode for Instagram scraping.")
-            mock_mode = True
-        
-        with InstagramScraper(headless=True, mock_mode=mock_mode) as scraper:
-            main_keyword = keywords[0] if keywords else request.theme
-            top_reels = scraper.search_reels_by_keyword(
-                main_keyword, 
-                top_count=10, 
-                min_engagement=0.5
-            )
+    def run_instagram_scraper():
+        try:
+            ig_cookie = os.getenv('IG_COOKIE')
+            mock_mode = False
+            if not ig_cookie:
+                logger.warning("IG_COOKIE not found in .env file. Using MOCK mode for Instagram scraping.")
+                mock_mode = True
             
-            three_months_ago = datetime.now() - timedelta(days=90)
-            recent_reels = [
-                reel for reel in top_reels 
-                if 'scraped_at' in reel and datetime.fromisoformat(reel['scraped_at']) > three_months_ago
-            ]
+            result_reels = []
+            result_matching = []
             
-            for reel in recent_reels[:3]:  # Process top 3 reels
-                if 'reel_id' in reel:
-                    audience_data = scraper.analyze_audience(reel['reel_id'])
-                    
-                    match_score = 0
-                    for key, value in target.items():
-                        if key in audience_data and audience_data[key] == value:
-                            match_score += 1
-                    
-                    if match_score > 0:
-                        # Download and transcribe
-                        media_result = scraper.download_and_transcribe(
-                            reel['reel_id'], 
-                            need_video=request.need_video
-                        )
+            with InstagramScraper(headless=True, mock_mode=mock_mode) as scraper:
+                main_keyword = keywords[0] if keywords else request.theme
+                result_reels = scraper.search_reels_by_keyword(
+                    main_keyword, 
+                    top_count=10, 
+                    min_engagement=0.5
+                )
+                
+                three_months_ago = datetime.now() - timedelta(days=90)
+                recent_reels = [
+                    reel for reel in result_reels 
+                    if 'scraped_at' in reel and datetime.fromisoformat(reel['scraped_at']) > three_months_ago
+                ]
+                
+                for reel in recent_reels[:3]:  # Process top 3 reels
+                    if 'reel_id' in reel:
+                        audience_data = scraper.analyze_audience(reel['reel_id'])
                         
-                        if media_result.get('transcript'):
-                            reel['transcript'] = media_result['transcript']
-                            matching_reels.append(reel)
+                        match_score = 0
+                        for key, value in target.items():
+                            if key in audience_data and audience_data[key] == value:
+                                match_score += 1
+                        
+                        if match_score > 0:
+                            # Download and transcribe
+                            media_result = scraper.download_and_transcribe(
+                                reel['reel_id'], 
+                                need_video=request.need_video
+                            )
+                            
+                            if media_result.get('transcript'):
+                                reel['transcript'] = media_result['transcript']
+                                result_matching.append(reel)
+                
+                logger.info(f"Found {len(result_matching)} matching reels for target audience")
             
-            logger.info(f"Found {len(matching_reels)} matching reels for target audience")
-    except Exception as e:
-        logger.error(f"Error in scraping/transcription: {e}")
+            return result_reels, result_matching
+        except Exception as e:
+            logger.error(f"Error in scraping/transcription: {e}")
+            return [], []
     
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_instagram_scraper)
+        top_reels, matching_reels = future.result()
     
     if matching_reels:
         best_reel = matching_reels[0]
