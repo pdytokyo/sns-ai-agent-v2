@@ -19,7 +19,14 @@ jobs:
         run: cp .env.example .env
 
       - name: Set IG_TEST_COOKIE for testing
-        run: echo "IG_TEST_COOKIE=mock_cookie_for_testing" >> .env
+        run: |
+          if [ -n "${{ secrets.IG_TEST_COOKIE }}" ]; then
+            echo "Using real IG_TEST_COOKIE from secrets"
+            echo "IG_TEST_COOKIE=${{ secrets.IG_TEST_COOKIE }}" >> .env
+          else
+            echo "No IG_TEST_COOKIE found in secrets, using mock value"
+            echo "IG_TEST_COOKIE=mock_cookie_for_testing" >> .env
+          fi
 
       - name: Set ENABLE_ANALYSIS=false for all services
         run: echo "ENABLE_ANALYSIS=false" >> .env
@@ -38,6 +45,20 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      - name: Verify Instagram Scraping Returns Results
+        run: |
+          echo "Testing Instagram scraping API directly"
+          response=$(curl -s -X POST -H "Content-Type: application/json" -d '{"theme":"Instagram engagement","client_id":"test_client","target":{"age":"18-34","interest":"social media"}}' http://localhost:8000/api/script/auto)
+          matching_reels_count=$(echo $response | grep -o '"matching_reels_count":[0-9]*' | cut -d':' -f2)
+          echo "API returned matching_reels_count: $matching_reels_count"
+          
+          if [ "$matching_reels_count" -eq "0" ]; then
+            echo "Error: No matching reels found. Instagram scraping failed."
+            exit 1
+          else
+            echo "Success: Found $matching_reels_count matching reels."
+          fi
 
       - name: Run Playwright tests
         run: CI=true npx playwright test
