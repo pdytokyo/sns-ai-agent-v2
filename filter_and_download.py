@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import logging
+import shutil
 from typing import List, Dict, Any
 import sys
 
@@ -67,6 +68,15 @@ def filter_reels(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     logger.info(f"Found {len(filtered)} reels with 500+ likes out of {len(results)} total posts")
     return filtered
 
+def check_yt_dlp_installed() -> bool:
+    """
+    Check if yt-dlp is installed
+    
+    Returns:
+        True if installed, False otherwise
+    """
+    return shutil.which('yt-dlp') is not None
+
 def download_reels(reels: List[Dict[str, Any]], output_dir: str = 'downloads') -> None:
     """
     Download reels using yt-dlp
@@ -75,8 +85,25 @@ def download_reels(reels: List[Dict[str, Any]], output_dir: str = 'downloads') -
         reels: List of reel items to download
         output_dir: Directory to save downloads
     """
+    if not check_yt_dlp_installed():
+        logger.error("yt-dlp is not installed. Please install it with 'pip install yt-dlp'")
+        return
+    
     os.makedirs(output_dir, exist_ok=True)
     logger.info(f"Saving downloads to: {output_dir}")
+    
+    ig_cookie = os.getenv('IG_TEST_COOKIE')
+    cookie_args = []
+    
+    if ig_cookie:
+        cookie_file = os.path.join(output_dir, '.cookies.txt')
+        with open(cookie_file, 'w') as f:
+            f.write(f"instagram.com\tTRUE\t/\tTRUE\t0\tcookie\t{ig_cookie}")
+        
+        cookie_args = ['--cookies', cookie_file]
+        logger.info("Using Instagram cookie from IG_TEST_COOKIE environment variable")
+    else:
+        logger.warning("No IG_TEST_COOKIE environment variable found. Downloads may fail due to authentication issues.")
     
     for i, reel in enumerate(reels):
         url = reel.get('url', '')
@@ -90,21 +117,34 @@ def download_reels(reels: List[Dict[str, Any]], output_dir: str = 'downloads') -
         logger.info(f"Downloading reel {i+1}/{len(reels)}: {url}")
         
         try:
-            subprocess.run([
+            cmd = [
                 'yt-dlp',
                 '-o', output_path,
                 '--format', 'mp4',
-                url
-            ], check=True)
+            ]
+            
+            if cookie_args:
+                cmd.extend(cookie_args)
+            
+            cmd.append(url)
+            
+            subprocess.run(cmd, check=True)
             
             logger.info(f"Successfully downloaded: {output_path}")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to download {url}: {e}")
         except Exception as e:
             logger.error(f"Unexpected error downloading {url}: {e}")
+    
+    if ig_cookie and os.path.exists(cookie_file):
+        try:
+            os.remove(cookie_file)
+        except Exception as e:
+            logger.warning(f"Failed to remove temporary cookie file: {e}")
 
 def main():
     """Main function"""
+    # Load results from JSON
     results = load_results()
     
     if not results:
