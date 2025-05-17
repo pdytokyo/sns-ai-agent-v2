@@ -331,9 +331,16 @@ class InstagramScraper:
             raise ValueError(f"Reel {reel_id} not found in database")
         
         comments = []
-        if reel.get('comments_json'):
+        if isinstance(reel, dict):
+            has_comments = reel.get('comments_json')
+            has_permalink = reel.get('permalink')
+        else:
+            has_comments = 'comments_json' in reel and reel['comments_json']
+            has_permalink = 'permalink' in reel and reel['permalink']
+            
+        if has_comments:
             comments = json.loads(reel['comments_json'])
-        elif reel.get('permalink'):
+        elif has_permalink:
             self.page.goto(reel['permalink'])
             comments = self.page.evaluate("""
             () => {
