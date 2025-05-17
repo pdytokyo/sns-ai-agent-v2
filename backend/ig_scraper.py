@@ -170,20 +170,61 @@ class InstagramScraper:
         else:
             hashtag = keyword
         
-        self.page.goto(f"https://www.instagram.com/explore/tags/{hashtag.strip('#')}/")
+        self.page.goto(f"https://www.instagram.com/explore/tags/{hashtag.strip('#')}/", wait_until='domcontentloaded')
+        self.page.wait_for_load_state('networkidle')
         
-        self.page.wait_for_selector('article', timeout=30000)
+        try:
+            logger.info(f"Waiting for 'article' selector with 60s timeout")
+            self.page.wait_for_selector('article', timeout=60000)
+        except Exception as e:
+            logger.warning(f"Could not find 'article' selector: {e}")
+            selectors = ['div[role="feed"]', 'div[data-testid="post-container"]', 'a[href*="/reel/"]']
+            for selector in selectors:
+                try:
+                    logger.info(f"Trying alternative selector: {selector}")
+                    self.page.wait_for_selector(selector, timeout=30000)
+                    logger.info(f"Found alternative selector: {selector}")
+                    break
+                except Exception as e:
+                    logger.warning(f"Could not find alternative selector {selector}: {e}")
+            
+            logger.info("Attempting to extract content from full HTML")
         
-        for _ in range(5):
+        reel_links = []
+        for i in range(8):  # Increased from 5 to 8 scrolls
             self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            time.sleep(2)
-        
-        reel_links = self.page.evaluate("""
-        () => {
-            const links = Array.from(document.querySelectorAll('a[href*="/reel/"]'));
-            return links.map(link => link.href);
-        }
-        """)
+            time.sleep(3)  # Increased from 2s to 3s
+            
+            try:
+                selectors = [
+                    'a[href*="/reel/"]',
+                    'a[href*="/p/"]',
+                    'div[role="presentation"] a',
+                    'article a'
+                ]
+                
+                for selector in selectors:
+                    try:
+                        logger.info(f"Trying to find Reels with selector: {selector}")
+                        links = self.page.evaluate(f"""
+                        () => {{
+                            const links = Array.from(document.querySelectorAll('{selector}'));
+                            return links.filter(link => link.href && (link.href.includes('/reel/') || link.href.includes('/p/'))).map(link => link.href);
+                        }}
+                        """)
+                        
+                        if links and len(links) > 0:
+                            reel_links.extend(links)
+                            logger.info(f"Found {len(links)} links with selector: {selector}")
+                            break
+                    except Exception as e:
+                        logger.warning(f"Error finding links with selector {selector}: {e}")
+                
+                if i > 2 and len(reel_links) > 10:
+                    logger.info(f"Found enough links ({len(reel_links)}), stopping scrolling")
+                    break
+            except Exception as e:
+                logger.error(f"Error during scroll {i}: {e}")
         
         unique_links = list(set(reel_links))
         logger.info(f"Found {len(unique_links)} unique Reels")
@@ -235,36 +276,156 @@ class InstagramScraper:
         Returns:
             Dictionary with Reel data
         """
-        self.page.goto(reel_url, wait_until='domcontentloaded')
-        
-        self.page.wait_for_selector('video', timeout=30000)
-        
-        reel_id = reel_url.split('/reel/')[1].split('/')[0]
-        
-        metrics = self.page.evaluate("""
-        () => {
-            const likeCount = parseInt(document.querySelector('section span')?.innerText.replace(/,/g, '') || '0');
-            const commentCount = parseInt(document.querySelectorAll('section span')[1]?.innerText.replace(/,/g, '') || '0');
-            const viewCount = parseInt(document.querySelector('span:has-text("views")')?.innerText.split(' ')[0].replace(/,/g, '') || '0');
+        try:
+            self.page.goto(reel_url, wait_until='domcontentloaded')
+            self.page.wait_for_load_state('networkidle')
             
-            // Extract audio URL if available
-            const audioElement = document.querySelector('audio');
-            const audioUrl = audioElement ? audioElement.src : null;
+            logger.info(f"Waiting for video element on {reel_url}")
             
-            // Extract video URL
-            const videoElement = document.querySelector('video');
-            const videoUrl = videoElement ? videoElement.src : null;
+            video_selectors = ['video', 'div[role="button"] video', 'article video', 'div[data-visualcompletion="media-vc-image"]']
+            video_found = False
             
-            return { likeCount, commentCount, viewCount, audioUrl, videoUrl };
-        }
-        """)
+            for selector in video_selectors:
+                try:
+                    logger.info(f"Trying video selector: {selector}")
+                    self.page.wait_for_selector(selector, timeout=20000)
+                    logger.info(f"Found video with selector: {selector}")
+                    video_found = True
+                    break
+                except Exception as e:
+                    logger.warning(f"Could not find video with selector {selector}: {e}")
+            
+            if not video_found:
+                logger.warning(f"Could not find any video element on {reel_url}, using fallback extraction")
+            
+            reel_id = reel_url.split('/reel/')[1].split('/')[0]
+        except Exception as e:
+            logger.error(f"Error navigating to reel page {reel_url}: {e}")
+            if '/reel/' in reel_url:
+                reel_id = reel_url.split('/reel/')[1].split('/')[0]
+            else:
+                reel_id = f"unknown_{int(time.time())}"
+            return {
+                'reel_id': reel_id,
+                'permalink': reel_url,
+                'like_count': 0,
+                'comment_count': 0,
+                'view_count': 0,
+                'scraped_at': datetime.now().isoformat()
+            }
         
-        comments = self.page.evaluate("""
-        () => {
-            const commentElements = document.querySelectorAll('ul > li span:not(:has(*))');
-            return Array.from(commentElements).map(el => el.innerText).slice(0, 50);
-        }
-        """)
+        try:
+            metrics = self.page.evaluate("""
+            () => {
+                // Try multiple selectors for metrics
+                const getMetric = (selectors) => {
+                    for (const selector of selectors) {
+                        const el = document.querySelector(selector);
+                        if (el && el.innerText) {
+                            return parseInt(el.innerText.replace(/,/g, '').split(' ')[0] || '0');
+                        }
+                    }
+                    return 0;
+                };
+                
+                // Like count selectors
+                const likeSelectors = [
+                    'section span', 
+                    'div[role="button"] span', 
+                    'span:has-text("likes")', 
+                    'span:has-text("いいね")'
+                ];
+                
+                // Comment count selectors
+                const commentSelectors = [
+                    'section span:nth-child(2)', 
+                    'div[role="button"]:nth-child(2) span', 
+                    'span:has-text("comments")', 
+                    'span:has-text("コメント")'
+                ];
+                
+                // View count selectors
+                const viewSelectors = [
+                    'span:has-text("views")', 
+                    'span:has-text("回視聴")', 
+                    'span:has-text("plays")',
+                    'div[role="button"] span:has-text("K")',
+                    'div[role="button"] span:has-text("M")'
+                ];
+                
+                const likeCount = getMetric(likeSelectors);
+                const commentCount = getMetric(commentSelectors);
+                const viewCount = getMetric(viewSelectors);
+                
+                // Extract audio URL if available
+                const audioElement = document.querySelector('audio');
+                const audioUrl = audioElement ? audioElement.src : null;
+                
+                // Extract video URL with multiple selectors
+                const videoSelectors = ['video', 'div[role="button"] video', 'article video'];
+                let videoUrl = null;
+                
+                for (const selector of videoSelectors) {
+                    const videoElement = document.querySelector(selector);
+                    if (videoElement && videoElement.src) {
+                        videoUrl = videoElement.src;
+                        break;
+                    }
+                }
+                
+                // Extract follower count if available
+                const followerSelectors = [
+                    'a[href*="/followers/"] span', 
+                    'div:has-text("followers") span', 
+                    'span:has-text("フォロワー")'
+                ];
+                const followerCount = getMetric(followerSelectors);
+                
+                return { 
+                    likeCount, 
+                    commentCount, 
+                    viewCount, 
+                    audioUrl, 
+                    videoUrl,
+                    followerCount
+                };
+            }
+            """)
+        except Exception as e:
+            logger.error(f"Error extracting metrics from {reel_url}: {e}")
+            metrics = {
+                'likeCount': 0,
+                'commentCount': 0,
+                'viewCount': 0,
+                'audioUrl': None,
+                'videoUrl': None,
+                'followerCount': 0
+            }
+        
+        try:
+            comments = self.page.evaluate("""
+            () => {
+                // Try multiple selectors for comments
+                const commentSelectors = [
+                    'ul > li span:not(:has(*))',
+                    'div[role="button"] span:not(:has(*))',
+                    'article ul li span',
+                    'div[data-testid="post-comment"] span'
+                ];
+                
+                for (const selector of commentSelectors) {
+                    const elements = document.querySelectorAll(selector);
+                    if (elements && elements.length > 0) {
+                        return Array.from(elements).map(el => el.innerText).slice(0, 50);
+                    }
+                }
+                
+                return [];
+            }
+            """)
+        except Exception as e:
+            logger.error(f"Error extracting comments from {reel_url}: {e}")
+            comments = []
         
         reel_data = {
             'reel_id': reel_id,
@@ -272,11 +433,28 @@ class InstagramScraper:
             'like_count': metrics.get('likeCount', 0),
             'comment_count': metrics.get('commentCount', 0),
             'view_count': metrics.get('viewCount', 0),
+            'playsCount': metrics.get('viewCount', 0),  # Alias for compatibility
             'audio_url': metrics.get('audioUrl'),
             'video_url': metrics.get('videoUrl'),
             'comments': comments,
+            'ownerFollowersCount': metrics.get('followerCount', 1000),  # Default to 1000 if not found
             'scraped_at': datetime.now().isoformat()
         }
+        
+        # Calculate engagement metrics
+        if reel_data['view_count'] > 0:
+            engagement_rate = (reel_data['like_count'] + reel_data['comment_count']) / reel_data['view_count'] * 100
+            reel_data['engagement_rate'] = engagement_rate
+        else:
+            reel_data['engagement_rate'] = 0
+            
+        if reel_data['ownerFollowersCount'] > 0:
+            views_followers_ratio = reel_data['view_count'] / reel_data['ownerFollowersCount']
+            reel_data['views_followers_ratio'] = views_followers_ratio
+        else:
+            reel_data['views_followers_ratio'] = 0
+            
+        logger.info(f"Extracted Reel {reel_id} with engagement rate {reel_data.get('engagement_rate', 0):.2f}% and views/followers ratio {reel_data.get('views_followers_ratio', 0):.2f}")
         
         return reel_data
     
