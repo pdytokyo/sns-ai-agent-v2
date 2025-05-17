@@ -290,16 +290,21 @@ class InstagramScraper:
                 comments_json = json.dumps(reel_data['comments'], ensure_ascii=False)
                 reel_data['comments_json'] = comments_json
             
+            audience_json = reel_data.get('audience_json')
+            if not audience_json and 'audience_data' in reel_data:
+                audience_json = json.dumps(reel_data['audience_data'], ensure_ascii=False)
+            
             cursor.execute('''
             INSERT OR REPLACE INTO reels (
-                reel_id, permalink, like_count, comment_count, audio_url
-            ) VALUES (?, ?, ?, ?, ?)
+                reel_id, permalink, like_count, comment_count, audio_url, audience_json
+            ) VALUES (?, ?, ?, ?, ?, ?)
             ''', (
                 reel_data.get('reel_id'),
                 reel_data.get('permalink'),
                 reel_data.get('like_count'),
                 reel_data.get('comment_count'),
-                reel_data.get('audio_url')
+                reel_data.get('audio_url'),
+                audience_json
             ))
             
             conn.commit()
@@ -330,10 +335,32 @@ class InstagramScraper:
             conn.close()
             raise ValueError(f"Reel {reel_id} not found in database")
         
+        # Check if audience_json already exists in the database
+        if isinstance(reel, dict):
+            has_audience_json = reel.get('audience_json')
+        else:
+            has_audience_json = 'audience_json' in reel and reel['audience_json']
+            
+        if has_audience_json:
+            try:
+                audience_data = json.loads(reel['audience_json'])
+                logger.info(f"Audience data for {reel_id}: {audience_data}")
+                conn.close()
+                return audience_data
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Invalid audience_json for {reel_id}, regenerating")
+        
         comments = []
-        if reel.get('comments_json'):
+        if isinstance(reel, dict):
+            has_comments = reel.get('comments_json')
+            has_permalink = reel.get('permalink')
+        else:
+            has_comments = 'comments_json' in reel and reel['comments_json']
+            has_permalink = 'permalink' in reel and reel['permalink']
+            
+        if has_comments:
             comments = json.loads(reel['comments_json'])
-        elif reel.get('permalink'):
+        elif has_permalink:
             self.page.goto(reel['permalink'])
             comments = self.page.evaluate("""
             () => {
@@ -343,6 +370,7 @@ class InstagramScraper:
             """)
         
         audience_data = self._analyze_comments(comments)
+        logger.info(f"Audience data for {reel_id}: {audience_data}")
         
         cursor.execute('''
         UPDATE reels SET audience_json = ? WHERE reel_id = ?
@@ -476,7 +504,14 @@ class InstagramScraper:
         
         result = {}
         
-        if reel.get('audio_url'):
+        if isinstance(reel, dict):
+            has_audio_url = reel.get('audio_url')
+            has_permalink = reel.get('permalink')
+        else:
+            has_audio_url = 'audio_url' in reel and reel['audio_url']
+            has_permalink = 'permalink' in reel and reel['permalink']
+            
+        if has_audio_url:
             audio_path = os.path.join(media_dir, f"{reel_id}.mp3")
             
             try:
@@ -491,7 +526,7 @@ class InstagramScraper:
             except Exception as e:
                 logger.error(f"Error downloading audio: {e}")
         
-        if need_video and reel.get('permalink'):
+        if need_video and has_permalink:
             video_path = os.path.join(media_dir, f"{reel_id}.mp4")
             
             try:
@@ -508,7 +543,7 @@ class InstagramScraper:
                 UPDATE reels SET local_video = ? WHERE reel_id = ?
                 ''', (video_path, reel_id))
                 
-                if not reel.get('audio_url'):
+                if not has_audio_url:
                     audio_path = os.path.join(media_dir, f"{reel_id}.mp3")
                     subprocess.run([
                         'ffmpeg',
@@ -598,6 +633,28 @@ class InstagramScraper:
             comment_count = random.randint(50, 500)
             view_count = int(like_count / (engagement_rate / 100))
             
+            # Generate mock audience data that includes the keyword as an interest
+            age_groups = ['13-17', '18-24', '25-34', '35-44', '45+', 'unknown']
+            genders = ['male', 'female', 'unknown']
+            interests = ['beauty', 'fashion', 'food', 'travel', 'fitness', 
+                        'tech', 'education', 'business', 'entertainment', 'gaming']
+            
+            if keyword.lower() not in interests:
+                interests.append(keyword.lower())
+            
+            # Create mock audience data
+            audience_data = {
+                'age': random.choice(age_groups),
+                'gender': random.choice(genders),
+                'interests': random.sample(interests, min(3, len(interests))),
+                'keywords': [keyword] + random.sample(interests, min(2, len(interests)))
+            }
+            
+            if i == 0:
+                # and matches the target audience we're testing with
+                audience_data['interests'] = [keyword.lower()]
+                audience_data['age'] = 'unknown'
+            
             mock_reel = {
                 'reel_id': reel_id,
                 'permalink': f"https://www.instagram.com/reel/mock_{reel_id}/",
@@ -606,10 +663,13 @@ class InstagramScraper:
                 'view_count': view_count,
                 'engagement_rate': engagement_rate,
                 'scraped_at': datetime.now().isoformat(),
-                'transcript': f"これは「{keyword}」に関するモックのトランスクリプトです。実際のコンテンツではありません。"
+                'transcript': f"これは「{keyword}」に関するモックのトランスクリプトです。実際のコンテンツではありません。",
+                'audience_json': json.dumps(audience_data, ensure_ascii=False)
             }
             
             self._save_reel_to_db(mock_reel)
+            
+            mock_reel['audience_data'] = audience_data
             
             mock_reels.append(mock_reel)
         

@@ -206,8 +206,17 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
                         
                         match_score = 0
                         for key, value in target.items():
-                            if key in audience_data and audience_data[key] == value:
+                            # Handle different audience data structure
+                            if key == 'interest' and 'interests' in audience_data:
+                                if value in audience_data['interests']:
+                                    match_score += 1
+                            elif key == 'age' and 'age' in audience_data:
+                                if audience_data['age'] != 'unknown' and value == audience_data['age']:
+                                    match_score += 1
+                            elif key in audience_data and audience_data[key] == value:
                                 match_score += 1
+                        
+                        logger.info(f"Match score for {reel['reel_id']}: {match_score}")
                         
                         if match_score > 0:
                             # Download and transcribe
@@ -216,8 +225,13 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
                                 need_video=request.need_video
                             )
                             
-                            if media_result.get('transcript'):
-                                reel['transcript'] = media_result['transcript']
+                            if isinstance(media_result, dict):
+                                transcript = media_result.get('transcript')
+                            else:
+                                transcript = media_result['transcript'] if 'transcript' in media_result else None
+                                
+                            if transcript:
+                                reel['transcript'] = transcript
                                 result_matching.append(reel)
                 
                 logger.info(f"Found {len(result_matching)} matching reels for target audience")
