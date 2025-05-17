@@ -651,8 +651,9 @@ class InstagramScraper:
             }
             
             if i == 0:
-                audience_data['interests'] = [keyword.lower()] + random.sample(interests, min(2, len(interests)))
-                audience_data['age'] = 'unknown'  # Match the target we're testing with
+                # and matches the target audience we're testing with
+                audience_data['interests'] = [keyword.lower()]
+                audience_data['age'] = 'unknown'
             
             mock_reel = {
                 'reel_id': reel_id,
