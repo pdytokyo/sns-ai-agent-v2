@@ -184,12 +184,15 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
             result_matching = []
             
             with InstagramScraper(headless=True, mock_mode=mock_mode) as scraper:
+                logger.info("InstagramScraper instance created")
                 main_keyword = keywords[0] if keywords else request.theme
+                logger.info("Calling search_reels_by_keyword")
                 result_reels = scraper.search_reels_by_keyword(
                     main_keyword, 
                     top_count=10, 
                     min_engagement=0.5
                 )
+                logger.info(f"Top reels fetched: {len(result_reels)}")
                 
                 three_months_ago = datetime.now() - timedelta(days=90)
                 recent_reels = [
