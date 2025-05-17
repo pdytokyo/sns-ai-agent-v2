@@ -459,6 +459,8 @@ class InstagramScraper:
         Returns:
             Dictionary with paths and transcript
         """
+        logger.info(f"Downloading and transcribing reel: {reel_id}")
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         
@@ -531,8 +533,12 @@ class InstagramScraper:
                 ''', (transcript, reel_id))
                 
                 logger.info(f"Transcribed audio for {reel_id}")
+                logger.info(f"Transcript found for {reel_id}")
             except Exception as e:
                 logger.error(f"Error transcribing audio: {e}")
+                logger.warning(f"No transcript found for {reel_id}")
+        else:
+            logger.warning(f"No transcript found for {reel_id}")
         
         conn.commit()
         conn.close()
