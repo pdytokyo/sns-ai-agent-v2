@@ -218,8 +218,13 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
                                 need_video=request.need_video
                             )
                             
-                            if media_result.get('transcript'):
-                                reel['transcript'] = media_result['transcript']
+                            if isinstance(media_result, dict):
+                                transcript = media_result.get('transcript')
+                            else:
+                                transcript = media_result['transcript'] if 'transcript' in media_result else None
+                                
+                            if transcript:
+                                reel['transcript'] = transcript
                                 result_matching.append(reel)
                 
                 logger.info(f"Found {len(result_matching)} matching reels for target audience")
