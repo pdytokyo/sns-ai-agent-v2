@@ -1,0 +1,24 @@
+{
+  "results": [
+    {
+      "url": "https://www.instagram.com/p/CxYZ123/",
+      "likesCount": 300,
+      "commentsCount": 50
+    },
+    {
+      "url": "https://www.instagram.com/reel/CxYZ456/",
+      "likesCount": 600,
+      "commentsCount": 100
+    },
+    {
+      "url": "https://www.instagram.com/reel/CxYZ789/",
+      "likesCount": 400,
+      "commentsCount": 75
+    },
+    {
+      "url": "https://www.instagram.com/reel/CxYZ012/",
+      "likesCount": 800,
+      "commentsCount": 150
+    }
+  ]
+}
