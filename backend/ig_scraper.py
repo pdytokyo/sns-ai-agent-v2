@@ -335,6 +335,21 @@ class InstagramScraper:
             conn.close()
             raise ValueError(f"Reel {reel_id} not found in database")
         
+        # Check if audience_json already exists in the database
+        if isinstance(reel, dict):
+            has_audience_json = reel.get('audience_json')
+        else:
+            has_audience_json = 'audience_json' in reel and reel['audience_json']
+            
+        if has_audience_json:
+            try:
+                audience_data = json.loads(reel['audience_json'])
+                logger.info(f"Audience data for {reel_id}: {audience_data}")
+                conn.close()
+                return audience_data
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Invalid audience_json for {reel_id}, regenerating")
+        
         comments = []
         if isinstance(reel, dict):
             has_comments = reel.get('comments_json')
