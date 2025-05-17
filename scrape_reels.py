@@ -1,8 +1,9 @@
 """
 Instagram Reels Scraper
 
-This script scrapes Instagram Reels from the Explore page and filters them based on engagement metrics.
+This script scrapes Instagram Reels from the Explore or Reels page and filters them based on engagement metrics.
 It uses Playwright for browser automation and saves the results to a JSON file.
+It also downloads the Reels videos using yt-dlp.
 """
 
 import json
@@ -11,19 +12,122 @@ import sys
 import time
 import logging
 import re
+import subprocess
+import shutil
+import tempfile
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple, Union
 from urllib.parse import urlparse, quote
 
 from playwright.sync_api import sync_playwright, Page, Browser, BrowserContext, TimeoutError as PlaywrightTimeoutError
 
-from login_instagram import load_cookies, is_logged_in, login_instagram
+from login_instagram import load_cookies, is_logged_in, login_instagram, get_stealth_config
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+DOWNLOADS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads')
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 logger = logging.getLogger('scrape_reels')
+
+def check_yt_dlp_installed() -> bool:
+    """
+    Check if yt-dlp is installed
+    
+    Returns:
+        True if installed, False otherwise
+    """
+    return shutil.which('yt-dlp') is not None
+
+def download_reel(url: str, output_dir: str = DOWNLOADS_DIR, cookie_file: str = 'cookie.json') -> Optional[str]:
+    """
+    Download a Reel using yt-dlp
+    
+    Args:
+        url: Reel URL
+        output_dir: Output directory
+        cookie_file: Path to cookie file
+        
+    Returns:
+        Path to downloaded file or None if download failed
+    """
+    if not check_yt_dlp_installed():
+        logger.error("yt-dlp is not installed. Please install it with 'pip install yt-dlp'")
+        return None
+    
+    try:
+        # Extract reel ID from URL
+        reel_id = re.search(r'/reel/([^/]+)', url)
+        if not reel_id:
+            reel_id = re.search(r'/p/([^/]+)', url)
+            if not reel_id:
+                logger.error(f"Could not extract reel ID from URL: {url}")
+                return None
+        
+        reel_id = reel_id.group(1)
+        output_path = os.path.join(output_dir, f"{reel_id}.mp4")
+        
+        temp_cookie_file = None
+        
+        if os.path.exists(cookie_file):
+            with open(cookie_file, 'r') as f:
+                cookies = json.load(f)
+            
+            temp_cookie_file = os.path.join(tempfile.gettempdir(), f"instagram_cookies_{int(time.time())}.txt")
+            
+            with open(temp_cookie_file, 'w') as f:
+                f.write("# Netscape HTTP Cookie File\n")
+                
+                for cookie in cookies:
+                    if cookie['name'] in ['sessionid', 'ds_user_id']:
+                        secure = "TRUE" if cookie.get('secure', False) else "FALSE"
+                        http_only = "TRUE" if cookie.get('httpOnly', False) else "FALSE"
+                        expires = str(int(cookie.get('expires', time.time() + 3600 * 24 * 365)))
+                        
+                        f.write(f"{cookie['domain']}\t")
+                        f.write("TRUE\t")  # Include subdomains
+                        f.write(f"{cookie['path']}\t")
+                        f.write(f"{secure}\t")
+                        f.write(f"{expires}\t")
+                        f.write(f"{cookie['name']}\t")
+                        f.write(f"{cookie['value']}\n")
+        
+        cmd = [
+            'yt-dlp',
+            '--no-warnings',
+            '-o', output_path,
+            '--format', 'mp4',
+            '--user-agent', 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+        ]
+        
+        if temp_cookie_file:
+            cmd.extend(['--cookies', temp_cookie_file])
+        
+        cmd.append(url)
+        
+        logger.info(f"Downloading Reel: {url}")
+        process = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Clean up temporary cookie file
+        if temp_cookie_file and os.path.exists(temp_cookie_file):
+            os.remove(temp_cookie_file)
+        
+        if process.returncode != 0:
+            logger.error(f"Failed to download Reel: {process.stderr}")
+            return None
+        
+        if os.path.exists(output_path):
+            logger.info(f"Successfully downloaded Reel to: {output_path}")
+            return output_path
+        else:
+            logger.error(f"Download completed but file not found: {output_path}")
+            return None
+    
+    except Exception as e:
+        logger.error(f"Error downloading Reel: {e}")
+        return None
 
 def extract_number(text: str) -> int:
     """
@@ -58,20 +162,26 @@ def extract_number(text: str) -> int:
     
     return int(number)
 
-def navigate_to_explore_page(page: Page) -> bool:
+def navigate_to_instagram_page(page: Page, page_type: str = 'explore') -> bool:
     """
-    Navigate to Instagram Explore page
+    Navigate to Instagram page (explore or reels)
     
     Args:
         page: Playwright page
+        page_type: Type of page to navigate to ('explore' or 'reels')
         
     Returns:
         True if navigation successful, False otherwise
     """
     try:
-        url = "https://www.instagram.com/explore/"
+        if page_type.lower() == 'reels':
+            url = "https://www.instagram.com/reels/"
+            page_name = "Reels"
+        else:
+            url = "https://www.instagram.com/explore/"
+            page_name = "Explore"
         
-        logger.info(f"Navigating to Explore page URL: {url}")
+        logger.info(f"Navigating to Instagram {page_name} page URL: {url}")
         
         page.goto(url, timeout=60000, wait_until='domcontentloaded')
         
@@ -81,7 +191,7 @@ def navigate_to_explore_page(page: Page) -> bool:
         page.wait_for_load_state('networkidle', timeout=60000)
         
         if "Page Not Found" in page.title():
-            logger.error("Explore page not found")
+            logger.error(f"{page_name} page not found")
             return False
         
         end_message_selectors = [
@@ -94,7 +204,7 @@ def navigate_to_explore_page(page: Page) -> bool:
         for selector in end_message_selectors:
             try:
                 if page.query_selector(selector):
-                    logger.warning(f"Found end message '{selector}' on Explore page")
+                    logger.warning(f"Found end message '{selector}' on {page_name} page")
                     return False
             except Exception:
                 pass
@@ -109,23 +219,32 @@ def navigate_to_explore_page(page: Page) -> bool:
         for selector in expected_selectors:
             try:
                 if page.wait_for_selector(selector, timeout=10000, state='attached'):
-                    logger.info(f"Found expected element {selector} on Explore page")
-                    logger.info("Successfully navigated to Explore page")
+                    logger.info(f"Found expected element {selector} on {page_name} page")
+                    logger.info(f"Successfully navigated to {page_name} page")
                     return True
             except PlaywrightTimeoutError:
                 continue
         
         current_url = page.url
-        if "/explore/" in current_url:
+        expected_path = f"/{page_type.lower()}/"
+        if expected_path in current_url:
             logger.info(f"URL verification successful: {current_url}")
-            logger.info("Successfully navigated to Explore page")
+            logger.info(f"Successfully navigated to {page_name} page")
             return True
         else:
             logger.warning(f"URL verification failed. Current URL: {current_url}, Expected: {url}")
             return False
     
     except Exception as e:
-        logger.error(f"Error navigating to Explore page: {e}")
+        logger.error(f"Error navigating to {page_name} page: {e}")
+        
+        try:
+            screenshot_path = f"navigation_error_{page_type}_{int(time.time())}.png"
+            page.screenshot(path=screenshot_path)
+            logger.info(f"Saved error screenshot to {screenshot_path}")
+        except Exception as screenshot_error:
+            logger.error(f"Failed to save screenshot: {screenshot_error}")
+            
         return False
 
 def get_reels_urls(page: Page, max_reels: int = 20) -> List[str]:
@@ -511,10 +630,13 @@ def scrape_reels(
     output_file: str = 'output_reels.json',
     max_reels: int = 20,
     min_ratio: float = 5.0,
-    headless: bool = False
+    headless: bool = False,
+    page_type: str = 'explore',
+    download_videos: bool = True,
+    user_data_dir: str = '~/.insta-profile'
 ) -> None:
     """
-    Scrape Instagram Reels from Explore page
+    Scrape Instagram Reels from Explore or Reels page
     
     Args:
         cookie_file: Path to cookie file
@@ -522,14 +644,23 @@ def scrape_reels(
         max_reels: Maximum number of Reels to collect
         min_ratio: Minimum plays/followers ratio
         headless: Run browser in headless mode
+        page_type: Type of page to navigate to ('explore' or 'reels')
+        download_videos: Whether to download videos using yt-dlp
+        user_data_dir: Path to Chrome user data directory
     """
+    user_data_dir = os.path.expanduser(user_data_dir)
+    
+    os.makedirs(user_data_dir, exist_ok=True)
+    
     with sync_playwright() as p:
         chrome_path = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
         logger.info(f"Using real Chrome browser at: {chrome_path}")
+        logger.info(f"Using Chrome user data directory: {user_data_dir}")
         
         browser = p.chromium.launch(
             headless=headless,
             executable_path=chrome_path,
+            user_data_dir=user_data_dir,
             args=[
                 '--disable-blink-features=AutomationControlled',  # Avoid detection
                 '--disable-features=IsolateOrigins,site-per-process',
@@ -541,13 +672,19 @@ def scrape_reels(
             ]
         )
         
+        stealth_config = get_stealth_config()
+        
         context = browser.new_context(
-            viewport={'width': 1280, 'height': 800},
-            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
-            locale='ja-JP',
-            timezone_id='Asia/Tokyo',
-            color_scheme='light',
-            has_touch=True
+            viewport=stealth_config['viewport'],
+            user_agent=stealth_config['user_agent'],
+            locale=stealth_config['locale'],
+            timezone_id=stealth_config['timezone_id'],
+            geolocation=stealth_config['geolocation'],
+            color_scheme=stealth_config['color_scheme'],
+            reduced_motion=stealth_config.get('reduced_motion', 'no-preference'),
+            has_touch=stealth_config['has_touch'],
+            is_mobile=stealth_config.get('is_mobile', True),
+            device_scale_factor=stealth_config.get('device_scale_factor', 2.0)
         )
         
         page = context.new_page()
@@ -616,14 +753,14 @@ def scrape_reels(
                 browser.close()
                 sys.exit(1)
             
-            if not navigate_to_explore_page(page):
+            if not navigate_to_instagram_page(page, page_type):
                 browser.close()
                 sys.exit(1)
             
             urls = get_reels_urls(page, max_reels)
             
             if not urls:
-                logger.warning("No Reels found on Explore page")
+                logger.warning(f"No Reels found on {page_type.capitalize()} page")
                 browser.close()
                 sys.exit(0)
             
@@ -639,8 +776,27 @@ def scrape_reels(
             
             save_to_json(filtered_reels, output_file)
             
+            if download_videos and filtered_reels:
+                logger.info(f"Downloading {len(filtered_reels)} Reels videos...")
+                
+                for i, reel in enumerate(filtered_reels):
+                    logger.info(f"Downloading Reel {i+1}/{len(filtered_reels)}: {reel['url']}")
+                    download_path = download_reel(reel['url'], DOWNLOADS_DIR, cookie_file)
+                    
+                    if download_path:
+                        reel['local_video'] = download_path
+                
+                save_to_json(filtered_reels, output_file)
+            
         except Exception as e:
             logger.error(f"Error scraping Reels: {e}")
+            
+            try:
+                screenshot_path = f"scrape_error_{int(time.time())}.png"
+                page.screenshot(path=screenshot_path)
+                logger.info(f"Saved error screenshot to {screenshot_path}")
+            except Exception as screenshot_error:
+                logger.error(f"Failed to save screenshot: {screenshot_error}")
         
         finally:
             browser.close()
@@ -649,21 +805,32 @@ def main():
     """Main function"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Instagram Reels Scraper for Explore Page')
+    parser = argparse.ArgumentParser(description='Instagram Reels Scraper with Enhanced Features')
     parser.add_argument('--cookie-file', '-c', default='cookie.json', help='Path to cookie file')
     parser.add_argument('--output-file', '-o', default='output_reels.json', help='Output file path')
     parser.add_argument('--max-reels', '-m', type=int, default=20, help='Maximum number of Reels to collect')
     parser.add_argument('--min-ratio', '-r', type=float, default=5.0, help='Minimum plays/followers ratio')
     parser.add_argument('--headless', action='store_true', help='Run browser in headless mode')
+    parser.add_argument('--page-type', '-p', choices=['explore', 'reels'], default='explore', 
+                        help='Type of Instagram page to scrape (explore or reels)')
+    parser.add_argument('--download-videos', '-d', action='store_true', default=True,
+                        help='Download videos using yt-dlp')
+    parser.add_argument('--no-download', action='store_false', dest='download_videos',
+                        help='Skip video downloads')
+    parser.add_argument('--user-data-dir', '-u', default='~/.insta-profile',
+                        help='Path to Chrome user data directory')
     
     args = parser.parse_args()
     
     scrape_reels(
-        args.cookie_file,
-        args.output_file,
-        args.max_reels,
-        args.min_ratio,
-        args.headless
+        cookie_file=args.cookie_file,
+        output_file=args.output_file,
+        max_reels=args.max_reels,
+        min_ratio=args.min_ratio,
+        headless=args.headless,
+        page_type=args.page_type,
+        download_videos=args.download_videos,
+        user_data_dir=args.user_data_dir
     )
 
 if __name__ == '__main__':
