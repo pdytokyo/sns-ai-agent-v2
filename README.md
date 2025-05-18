@@ -12,6 +12,7 @@ SNS AI Agent は、AIを活用してプロフィール、スクリプト、動�
 - 詳細な成功事例データベース
 - 著作権フリーの音声ライブラリ
 - アスペクト比調整機能付き動画処理
+- GPT-4 Browsingを使用した動画URL収集
 
 ## インストール方法
 
@@ -104,6 +105,9 @@ uvicorn app.main_final_integration:app --reload
 - `GET /api/video/{result_id}` - 処理済み動画をストリーミング
 - `POST /process-video/` - 拡張動画処理エンドポイント
 
+### GPT URL収集
+- `POST /api/url_scraper` - GPT-4 Browsingを使用して動画URLを収集
+
 ## データベーススキーマ
 
 アプリケーションは以下のテーブルを持つSQLiteを使用しています:
@@ -142,6 +146,43 @@ curl -X GET http://localhost:8000/health
 - OpenAI APIエラーの場合は、`.env` ファイル内のAPIキーを確認してください
 - アプリケーションが起動しない場合は、コンソールでエラーメッセージを確認してください
 - 依存関係のインストールに問題がある場合は、Pythonのバージョンが3.8以上であることを確認してください
+
+## GPT URL収集機能
+
+GPT-4 Browsingを使用して、Instagram、TikTok、YouTubeなどから動画URLを収集する機能です。
+
+### CLI使用方法
+
+```bash
+python gpt_url_scraper_cli.py "恋愛" --platform Instagram --count 5 --output output_urls.json
+```
+
+### API使用方法
+
+```bash
+curl -X POST "http://localhost:8000/api/url_scraper" \
+     -H "Content-Type: application/json" \
+     -d '{"keyword": "恋愛", "platform": "Instagram", "count": 5}'
+```
+
+### 出力形式
+
+URLは以下の形式でJSONファイルに保存されます：
+
+```json
+[
+  {
+    "url": "https://www.instagram.com/reel/xxxxxxx/",
+    "platform": "Instagram",
+    "summary": "30代女性向けの恋愛心理テクニック"
+  },
+  {
+    "url": "https://www.tiktok.com/@example/video/12345678",
+    "platform": "TikTok",
+    "summary": "副業で月10万円を目指す初心者向けTips"
+  }
+]
+```
 # Client Account Analysis Feature
 # Trigger CI run
 ## Client Account Analysis

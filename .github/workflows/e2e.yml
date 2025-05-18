@@ -28,6 +28,16 @@ jobs:
             echo "IG_TEST_COOKIE=mock_cookie_for_testing" >> .env
           fi
 
+      - name: Set OPENAI_API_KEY for testing
+        run: |
+          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "Using real OPENAI_API_KEY from secrets"
+            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+          else
+            echo "No OPENAI_API_KEY found in secrets, using dummy value for testing"
+            echo "OPENAI_API_KEY=dummy-api-key-for-testing" >> .env
+          fi
+
       - name: Set ENABLE_ANALYSIS=false for all services
         run: echo "ENABLE_ANALYSIS=false" >> .env
 
