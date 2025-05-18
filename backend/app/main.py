@@ -15,6 +15,9 @@ app.add_middleware(
 
 app.include_router(script.router)
 
+from .routers import url_scraper
+app.include_router(url_scraper.router)
+
 if os.getenv("ENABLE_ANALYSIS") == "true":
     from .routers import analysis
     app.include_router(analysis.router)

@@ -1,0 +1,14 @@
+Please find {count} trending videos on {platform} related to the keyword '{keyword}'. 
+
+For each video, provide:
+1. The direct URL to the video
+2. A brief summary of what the video is about (1-2 sentences)
+
+Focus on videos that have high engagement (many likes, comments, shares) and were posted recently (within the last 3 months if possible).
+
+Make sure to provide only direct links to specific videos, not general profile or channel pages. The URLs should be in the following format:
+- Instagram: https://www.instagram.com/reel/[ID]/ or https://www.instagram.com/p/[ID]/
+- TikTok: https://www.tiktok.com/@[username]/video/[ID]
+- YouTube: https://www.youtube.com/watch?v=[ID] or https://youtu.be/[ID]
+
+Format your response as a numbered list with the URL followed by the summary for each video.
