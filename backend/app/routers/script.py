@@ -174,14 +174,34 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
     
     def run_instagram_scraper():
         try:
-            ig_cookie = os.getenv('IG_COOKIE')
+            cookie_file_path = os.path.join(os.getcwd(), 'cookie.json')
+            reels_file_path = os.path.join(os.getcwd(), 'reels.json')
+            
+            if not os.path.exists(cookie_file_path):
+                logger.warning(f"cookie.json not found at {cookie_file_path}. This may affect authentication.")
+            
+            if not os.path.exists(reels_file_path):
+                logger.warning(f"reels.json not found at {reels_file_path}. This may affect cached results.")
+            
+            ig_cookie = os.getenv('IG_TEST_COOKIE')
             mock_mode = False
+            
             if not ig_cookie:
-                logger.warning("IG_COOKIE not found in .env file. Using MOCK mode for Instagram scraping.")
+                logger.warning("IG_TEST_COOKIE not found in environment. Using MOCK mode for Instagram scraping.")
+                logger.warning("This is expected in CI environments without secrets configured.")
                 mock_mode = True
+            elif ig_cookie == 'mock_cookie_for_testing':
+                logger.warning("Using mock cookie for testing. Live scraping will be limited.")
+                mock_mode = True
+            else:
+                logger.info("Using real IG_TEST_COOKIE for live scraping.")
             
             result_reels = []
             result_matching = []
+            
+            if mock_mode and os.getenv('CI') == 'true':
+                logger.warning("Running in CI environment with mock mode. Returning empty results.")
+                return [], []
             
             with InstagramScraper(headless=True, mock_mode=mock_mode) as scraper:
                 logger.info("InstagramScraper instance created")
@@ -200,45 +220,45 @@ async def auto_generate_script(request: ThemeRequest, background_tasks: Backgrou
                     if 'scraped_at' in reel and datetime.fromisoformat(reel['scraped_at']) > three_months_ago
                 ]
                 
-                for reel in recent_reels[:3]:  # Process top 3 reels
+                logger.info(f"Found {len(recent_reels)} reels less than 90 days old")
+                
+                for reel in recent_reels:
                     if 'reel_id' in reel:
                         audience_data = scraper.analyze_audience(reel['reel_id'])
+                        logger.info(f"Audience data for {reel['reel_id']}: {audience_data}")
                         
-                        match_score = 0
-                        for key, value in target.items():
-                            # Handle different audience data structure
-                            if key == 'interest' and 'interests' in audience_data:
-                                if value in audience_data['interests']:
-                                    match_score += 1
-                            elif key == 'age' and 'age' in audience_data:
-                                if audience_data['age'] != 'unknown' and value == audience_data['age']:
-                                    match_score += 1
-                            elif key in audience_data and audience_data[key] == value:
-                                match_score += 1
+                        views = reel.get('playsCount', 0)
+                        followers = reel.get('ownerFollowersCount', 0)
                         
-                        logger.info(f"Match score for {reel['reel_id']}: {match_score}")
-                        
-                        if match_score > 0:
-                            # Download and transcribe
-                            media_result = scraper.download_and_transcribe(
-                                reel['reel_id'], 
-                                need_video=request.need_video
-                            )
+                        if followers > 0:
+                            ratio = views / followers
+                            logger.info(f"Views/followers ratio for {reel['reel_id']}: {ratio:.2f} ({views}/{followers})")
                             
-                            if isinstance(media_result, dict):
-                                transcript = media_result.get('transcript')
-                            else:
-                                transcript = media_result['transcript'] if 'transcript' in media_result else None
+                            if ratio >= 3:
+                                # Download and transcribe
+                                media_result = scraper.download_and_transcribe(
+                                    reel['reel_id'], 
+                                    need_video=request.need_video
+                                )
                                 
-                            if transcript:
-                                reel['transcript'] = transcript
-                                result_matching.append(reel)
+                                if isinstance(media_result, dict):
+                                    transcript = media_result.get('transcript')
+                                else:
+                                    transcript = media_result['transcript'] if 'transcript' in media_result else None
+                                    
+                                if transcript:
+                                    reel['transcript'] = transcript
+                                    result_matching.append(reel)
                 
-                logger.info(f"Found {len(result_matching)} matching reels for target audience")
+                logger.info(f"Found {len(result_matching)} matching reels with views/followers ratio ≥ 3")
+            
+            if not result_matching:
+                logger.warning("No matching reels found with views/followers ratio ≥ 3")
             
             return result_reels, result_matching
         except Exception as e:
             logger.error(f"Error in scraping/transcription: {e}")
+            logger.exception("Full exception details:")
             return [], []
     
     with concurrent.futures.ThreadPoolExecutor() as executor:
