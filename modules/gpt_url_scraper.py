@@ -3,7 +3,7 @@ import json
 import logging
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
-import openai
+from openai import OpenAI
 
 load_dotenv()
 
@@ -35,7 +35,8 @@ class GPTUrlScraper:
         else:
             self.mock_mode = False
             
-        openai.api_key = self.api_key
+        # Initialize OpenAI client
+        self.client = OpenAI(api_key=self.api_key)
         
         self.system_prompt = self._load_prompt_template("system_prompt.txt")
         self.user_prompt = self._load_prompt_template("user_prompt.txt")
@@ -236,17 +237,19 @@ class GPTUrlScraper:
                 count=count
             )
             
-            response = await openai.ChatCompletion.acreate(
-                model="gpt-4-browsing",  # Use the browsing-enabled model
+            # Use the already initialized OpenAI client
+            response = await self.client.chat.completions.create(
+                model="gpt-4-turbo-preview",  # Use the latest GPT-4 model with browsing capability
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": formatted_user_prompt}
                 ],
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=2000,
+                tools=[{"type": "retrieval"}]  # Enable web browsing capability
             )
             
-            response_text = response.choices[0].message.content
+            response_text = response.choices[0].message.content or ""
             
             urls = self._extract_urls_from_response(response_text)
             
