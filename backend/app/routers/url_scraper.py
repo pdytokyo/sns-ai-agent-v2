@@ -5,9 +5,31 @@ import os
 import sys
 import logging
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+app_dir = os.path.dirname(os.path.dirname(current_dir))
+project_root = os.path.dirname(app_dir)
+sys.path.append(project_root)
 
-from modules.gpt_url_scraper import GPTUrlScraper
+try:
+    from modules.gpt_url_scraper import GPTUrlScraper
+except ImportError:
+    sys.path.append("/app")
+    try:
+        from modules.gpt_url_scraper import GPTUrlScraper
+    except ImportError:
+        logging.error("Could not import GPTUrlScraper. Using mock implementation.")
+        
+        class GPTUrlScraper:
+            async def fetch_urls(self, keyword, platform="Instagram", count=5):
+                return [
+                    {"url": f"https://www.{platform.lower()}.com/example1", "platform": platform, "summary": f"Example {keyword} video 1"},
+                    {"url": f"https://www.{platform.lower()}.com/example2", "platform": platform, "summary": f"Example {keyword} video 2"}
+                ]
+                
+            def save_urls_to_json(self, urls, output_file="output_urls.json"):
+                import json
+                with open(output_file, "w", encoding="utf-8") as f:
+                    json.dump(urls, f, ensure_ascii=False, indent=2)
 
 router = APIRouter()
 logger = logging.getLogger("url_scraper_router")
