@@ -17,6 +17,10 @@ RUN apt-get update && \
     libatspi2.0-0 \
     libxcomposite1 \
     libxdamage1 \
+    # Japanese fonts
+    fonts-dejavu \
+    fonts-droid-fallback \
+    fonts-noto-cjk \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
