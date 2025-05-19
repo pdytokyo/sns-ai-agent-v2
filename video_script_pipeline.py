@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pathlib import Path
 import time
+from tqdm import tqdm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -199,6 +200,11 @@ class VideoScriptPipeline:
         """
         logger.info(f"Downloading {len(videos_data)} videos")
         
+        is_ci = os.environ.get("CI", "false").lower() == "true"
+        
+        if not is_ci:
+            print(f"Starting download of {len(videos_data)} videos...")
+            
         video_paths = self.downloader.batch_download(videos_data)
         
         for video in self.results["videos"]:
@@ -250,6 +256,11 @@ class VideoScriptPipeline:
         """
         logger.info(f"Generating scripts for {len(transcripts)} videos")
         
+        is_ci = os.environ.get("CI", "false").lower() == "true"
+        
+        if not is_ci:
+            print(f"Generating scripts for {len(transcripts)} videos...")
+        
         scripts = self.generator.batch_generate(
             transcripts=transcripts,
             target_audience=target_audience,
@@ -257,7 +268,14 @@ class VideoScriptPipeline:
         )
         
         script_list = []
-        for url, options in scripts.items():
+        
+        items = list(scripts.items())
+        progress_iter = items if is_ci else tqdm(items, desc="Processing scripts", unit="video")
+        
+        for url, options in progress_iter:
+            if not is_ci and isinstance(progress_iter, tqdm):
+                progress_iter.set_description(f"Processing {self._extract_video_id(url)}")
+                
             for option in options:
                 script_entry = {
                     "url": url,

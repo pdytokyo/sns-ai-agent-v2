@@ -19,18 +19,26 @@ logging.basicConfig(
 class BaseScraper(ABC):
     """Base class for all platform-specific scrapers."""
     
-    def __init__(self, output_dir: str = "projects/default", max_videos: int = 20):
+    def __init__(
+        self, 
+        output_dir: str = "projects/default", 
+        max_videos: int = 20,
+        max_retries: int = 3
+    ):
         """
         Initialize the base scraper.
         
         Args:
             output_dir: Directory to save output files
             max_videos: Maximum number of videos to scrape
+            max_retries: Maximum number of retry attempts for failed requests
         """
         self.logger = logging.getLogger(self.__class__.__name__)
         self.output_dir = output_dir
         self.max_videos = max_videos
+        self.max_retries = max_retries
         self.results = []
+        self.failed_urls = []
         
         os.makedirs(output_dir, exist_ok=True)
     
@@ -112,3 +120,41 @@ class BaseScraper(ABC):
         
         self.logger.info(f"Filtered {len(filtered)}/{len(self.results)} results with min_engagement={min_engagement}")
         return filtered
+        
+    def save_failed_urls(self, filename: str = "failed_urls.json") -> str:
+        """
+        Save failed URLs to JSON file.
+        
+        Args:
+            filename: Output filename
+            
+        Returns:
+            Path to saved file
+        """
+        output_path = os.path.join(self.output_dir, filename)
+        
+        existing_urls = []
+        if os.path.exists(output_path):
+            try:
+                with open(output_path, 'r', encoding='utf-8') as f:
+                    existing_urls = json.load(f)
+                    if not isinstance(existing_urls, list):
+                        existing_urls = []
+            except Exception as e:
+                self.logger.error(f"Error loading existing failed URLs: {e}")
+                existing_urls = []
+        
+        all_failed_urls = existing_urls + self.failed_urls
+        
+        unique_failed_urls = []
+        seen = set()
+        for url in all_failed_urls:
+            if url not in seen:
+                seen.add(url)
+                unique_failed_urls.append(url)
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(unique_failed_urls, f, ensure_ascii=False, indent=2)
+        
+        self.logger.info(f"Saved {len(unique_failed_urls)} failed URLs to {output_path}")
+        return output_path
